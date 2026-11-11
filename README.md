@@ -12,6 +12,9 @@ A clickable demo of what small, frequent writes do to a lakehouse table:
 - **Run an analytical query** and see planning, file opens and storage requests grow
 - **Compact files**, then notice that storage went *up*, not down
 - **Expire + clean up** to actually get the space back
+- Watch **compaction under the hood**: candidates, rewrite groups, bin-packing, commits, with sliders for `target-file-size-bytes`, `max-file-group-size-bytes`, `max-concurrent-file-group-rewrites` and partial progress
+- Toggle **partition by day** to see small files multiply
+- Turn on a **maintenance policy** (event or schedule trigger) and let it clean up while data streams in
 - Switch to **DuckLake** to see data inlining avoid most small files, and `CHECKPOINT` clean up in one step
 
 Query times come from a simple illustrative cost model, not a benchmark. The lab below gives real numbers.

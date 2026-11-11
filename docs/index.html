@@ -7,14 +7,16 @@
 <style>
   :root{
     --bg:#13201A; --panel:#1B2B23; --panel2:#22362C; --line:#2F4A3C;
-    --text:#E9EDE3; --muted:#9FB0A3; --green:#A6CF4E; --amber:#E8A33D; --grey:#56675C; --red:#E07A5F;
+    --text:#E9EDE3; --muted:#9FB0A3; --green:#A6CF4E; --amber:#E8A33D; --grey:#56675C; --blue:#7FB8E0;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-  .wrap{max-width:1280px;margin:0 auto;padding:20px}
+  body.big{font-size:18px}
+  .wrap{max-width:1320px;margin:0 auto;padding:20px}
   header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
-  h1{font-size:22px;margin:0;letter-spacing:.2px}
+  h1{font-size:22px;margin:0}
   h1 span{color:var(--green)}
+  .hright{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .modes{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px}
   .modes button{background:none;border:0;color:var(--muted);padding:8px 14px;border-radius:8px;font:inherit;cursor:pointer}
   .modes button.on{background:var(--panel2);color:var(--text);font-weight:600}
@@ -27,74 +29,103 @@
   .btn:disabled{opacity:.4;cursor:not-allowed}
   .sep{width:1px;height:28px;background:var(--line);margin:0 4px}
   .grid{display:grid;grid-template-columns:260px 1fr;gap:16px}
-  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+  @media (max-width:900px){.grid,.row2{grid-template-columns:1fr}}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
   .card h2{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:600}
   .writer{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;min-height:220px}
   .orb{width:96px;height:96px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-size:40px;transition:box-shadow .2s}
   .orb.live{box-shadow:0 0 0 6px rgba(166,207,78,.18),0 0 30px rgba(166,207,78,.35)}
-  .writer b{font-size:17px}
   .writer small{color:var(--muted)}
   .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
   .stat{background:var(--panel2);border-radius:10px;padding:10px}
   .stat .k{font-size:12px;color:var(--muted)}
   .stat .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
   .stat .v.bad{color:var(--amber)} .stat .v.good{color:var(--green)}
-  .tiles{display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;min-height:120px;max-height:260px;overflow:auto;padding:2px}
-  .t{border-radius:3px;transition:all .25s}
+  .parts{display:flex;flex-direction:column;gap:8px}
+  .plabel{font-size:12px;color:var(--muted)}
+  .tiles{display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;min-height:40px;max-height:240px;overflow:auto;padding:2px}
+  .t{border-radius:3px;transition:all .25s;flex:none}
   .t.small{width:20px;height:13px;background:var(--amber)}
-  .t.big{width:120px;height:44px;background:var(--green);display:grid;place-items:center;color:var(--bg);font-size:12px;font-weight:700}
-  .t.dead{background:var(--grey);opacity:.55}
+  .t.big{height:40px;background:var(--green);display:grid;place-items:center;color:var(--bg);font-size:11px;font-weight:700;overflow:hidden;white-space:nowrap}
+  .t.dead{background:var(--grey)!important;opacity:.55;color:transparent}
   .t.new{transform:scale(1.5);box-shadow:0 0 10px var(--amber)}
   .t.reading{outline:2px solid #fff}
+  .t.cand{outline:2px solid var(--blue);outline-offset:1px}
   .inline{margin-top:10px;display:none}
   .inline.on{display:block}
   .meter{height:14px;background:var(--panel2);border-radius:7px;overflow:hidden}
   .meter i{display:block;height:100%;background:var(--green);width:0;transition:width .25s}
-  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
-  @media (max-width:900px){.row2{grid-template-columns:1fr}}
   .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:8px}
   .legend span::before{content:"";display:inline-block;width:12px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle;background:var(--c)}
   .pipe{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
-  .step{flex:1;min-width:120px;background:var(--panel2);border-radius:10px;padding:10px;border:1px solid transparent;transition:border-color .2s}
+  .step{flex:1;min-width:110px;background:var(--panel2);border-radius:10px;padding:10px;border:1px solid transparent;transition:border-color .2s}
   .step.active{border-color:var(--amber)}
+  .step.done{border-color:var(--green)}
   .step .k{font-size:12px;color:var(--muted)}
-  .step .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
-  .total{margin-top:12px;display:flex;align-items:baseline;gap:10px}
+  .step .v{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+  .total{margin-top:12px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
   .total .v{font-size:34px;font-weight:800;font-variant-numeric:tabular-nums}
   .hist{display:flex;align-items:flex-end;gap:6px;height:130px;margin-top:12px;border-bottom:1px solid var(--line);padding-bottom:2px;overflow-x:auto}
-  .hb{min-width:34px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted)}
+  .hb{min-width:38px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted)}
   .hb i{display:block;width:26px;border-radius:4px 4px 0 0;background:var(--amber);transition:height .4s}
   .hb.good i{background:var(--green)}
-  .log{font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);height:150px;overflow:auto;background:#0E1813;border-radius:10px;padding:10px}
-  .log .ok{color:var(--green)} .log .warn{color:var(--amber)}
+  .log{font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);height:160px;overflow:auto;background:#0E1813;border-radius:10px;padding:10px}
+  .log .ok{color:var(--green)} .log .warn{color:var(--amber)} .log .info{color:var(--blue)}
   .note{font-size:12.5px;color:var(--muted);margin-top:14px}
   .callout{margin-top:10px;padding:10px 12px;border-left:3px solid var(--amber);background:#2A2A1C;border-radius:6px;font-size:14px;display:none}
   .callout.on{display:block}
   label.tg{display:inline-flex;gap:6px;align-items:center;color:var(--muted);font-size:14px;cursor:pointer}
+  .params{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+  .param{background:var(--panel2);border-radius:10px;padding:10px 12px}
+  .param .top{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+  .param code{font:12px ui-monospace,Menlo,monospace;color:var(--blue);word-break:break-all}
+  .param .val{font-weight:700;color:var(--text);white-space:nowrap}
+  .param small{display:block;color:var(--muted);font-size:12px;margin-top:4px}
+  .param input[type=range]{width:100%;accent-color:var(--green)}
+  .groups{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;min-height:30px}
+  .grp{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:150px;font-size:13px}
+  .grp .h{display:flex;justify-content:space-between;gap:8px;font-weight:600}
+  .grp .s{font-size:12px;color:var(--muted)}
+  .grp.run{border-color:var(--amber)} .grp.done{border-color:var(--green)} .grp.committed{border-color:var(--green);background:#22381F}
+  .grp .bar2{height:6px;background:#0E1813;border-radius:3px;margin-top:6px;overflow:hidden}
+  .grp .bar2 i{display:block;height:100%;width:0;background:var(--amber);transition:width .6s linear}
+  .grp.done .bar2 i,.grp.committed .bar2 i{background:var(--green)}
+  .commits{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--muted);align-items:center}
+  .commit{background:#22381F;border:1px solid var(--green);color:var(--green);border-radius:999px;padding:2px 10px;font-weight:600}
+  .policy{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+  .policy select,.policy input[type=number]{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:6px 8px;font:inherit}
+  .policy input[type=number]{width:70px}
+  .pill{font-size:12px;padding:3px 10px;border-radius:999px;background:var(--panel2);color:var(--muted)}
+  .pill.on{background:#22381F;color:var(--green)}
+  .hide{display:none!important}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <h1>Rotten Lakehouse <span>Simulator</span></h1>
-    <div class="modes" role="tablist">
-      <button id="m-ice" class="on" onclick="setMode('iceberg')">Apache Iceberg</button>
-      <button id="m-dl" onclick="setMode('ducklake')">DuckLake</button>
+    <div class="hright">
+      <label class="tg"><input type="checkbox" onchange="document.body.classList.toggle('big',this.checked)"> Projector mode</label>
+      <div class="modes" role="tablist">
+        <button id="m-ice" class="on" onclick="setMode('iceberg')">Apache Iceberg</button>
+        <button id="m-dl" onclick="setMode('ducklake')">DuckLake</button>
+      </div>
     </div>
   </header>
 
   <div class="bar">
-    <button class="btn primary" id="b-stream" onclick="stream(20)">▶ Stream 20 micro-batches</button>
+    <button class="btn primary" onclick="stream(20)">▶ Stream 20 micro-batches</button>
     <label class="tg"><input type="checkbox" id="auto" onchange="toggleAuto()"> Keep streaming</label>
-    <button class="btn" id="b-query" onclick="runQuery()">🔍 Run analytical query</button>
+    <label class="tg" id="partd-wrap"><input type="checkbox" id="partd" onchange="togglePart()"> Partition by day (2 days)</label>
+    <button class="btn" onclick="runQuery()">🔍 Run analytical query</button>
     <span class="sep"></span>
     <span id="fix-ice">
-      <button class="btn fix" onclick="compact()">🧱 Compact files</button>
+      <button class="btn fix" onclick="compactAnimated()">🧱 Compact files</button>
       <button class="btn fix" onclick="expireClean()">🗑️ Expire + clean up</button>
       <button class="btn fix" onclick="rewriteManifests()">📇 Rewrite manifests</button>
     </span>
-    <span id="fix-dl" style="display:none">
+    <span id="fix-dl" class="hide">
       <label class="tg"><input type="checkbox" id="inl" checked onchange="render()"> Data inlining</label>
       <button class="btn fix" onclick="checkpoint()">✨ CHECKPOINT</button>
     </span>
@@ -104,17 +135,17 @@
   <div class="grid">
     <div class="card writer">
       <div class="orb" id="orb">〰️</div>
-      <b>Streaming job</b>
-      <small>Small micro-batches (50 rows each), every few seconds</small>
+      <b id="w-title">Streaming job (e.g. Flink)</b>
+      <small id="w-sub">High-frequency micro-batches, a few MB each</small>
       <div class="stats" style="width:100%">
-        <div class="stat"><div class="k">Writes</div><div class="v" id="s-writes">0</div></div>
-        <div class="stat"><div class="k">Rows</div><div class="v" id="s-rows">0</div></div>
+        <div class="stat"><div class="k">Commits</div><div class="v" id="s-writes">0</div></div>
+        <div class="stat"><div class="k">Data written</div><div class="v" id="s-mb">0</div></div>
       </div>
     </div>
 
     <div class="card">
       <h2 id="table-title">Iceberg table: files the query must read</h2>
-      <div class="tiles" id="live"></div>
+      <div class="parts" id="live"></div>
       <div class="inline" id="inline-box">
         <h2 style="margin-top:12px">Inlined rows in the catalog database (no files)</h2>
         <div class="meter"><i id="inline-meter"></i></div>
@@ -132,7 +163,7 @@
   <div class="row2">
     <div class="card">
       <h2>On object storage (what you pay for)</h2>
-      <div class="tiles" id="s3" style="max-height:180px"></div>
+      <div class="tiles" id="s3" style="max-height:170px"></div>
       <div class="legend">
         <span style="--c:var(--amber)">small file, in use</span>
         <span style="--c:var(--green)">compacted file, in use</span>
@@ -140,7 +171,7 @@
       </div>
       <div class="stats" style="grid-template-columns:repeat(3,1fr)">
         <div class="stat"><div class="k">Data files on S3</div><div class="v" id="s-s3">0</div></div>
-        <div class="stat"><div class="k" id="k-meta">Metadata files on S3</div><div class="v" id="s-meta">0</div></div>
+        <div class="stat"><div class="k" id="k-meta">Manifests + metadata.json</div><div class="v" id="s-meta">0</div></div>
         <div class="stat"><div class="k">Wasted (unused) files</div><div class="v" id="s-dead">0</div></div>
       </div>
       <div class="callout" id="trap">Compacted, but nothing was deleted. The old small files are still on S3 because old snapshots point to them. Expire + clean up to get the space back.</div>
@@ -150,8 +181,8 @@
       <h2>The query engine</h2>
       <div class="pipe">
         <div class="step" id="p1"><div class="k">1 · Plan</div><div class="v" id="q-plan">–</div></div>
-        <div class="step" id="p2"><div class="k">2 · Open files</div><div class="v" id="q-open">–</div></div>
-        <div class="step" id="p3"><div class="k">3 · Scan rows</div><div class="v" id="q-scan">–</div></div>
+        <div class="step" id="p2"><div class="k">2 · Open + close files</div><div class="v" id="q-open">–</div></div>
+        <div class="step" id="p3"><div class="k">3 · Scan data</div><div class="v" id="q-scan">–</div></div>
       </div>
       <div class="total"><span class="v" id="q-total">–</span><span style="color:var(--muted)">simulated query time · <b id="q-req">0</b> storage requests</span></div>
       <div class="hist" id="hist"></div>
@@ -159,198 +190,346 @@
     </div>
   </div>
 
+  <div class="card" style="margin-top:16px" id="compaction-card">
+    <h2>Compaction under the hood: <code style="text-transform:none;letter-spacing:0">rewrite_data_files</code> (bin-pack)</h2>
+    <div class="params">
+      <div class="param"><div class="top"><code>target-file-size-bytes</code><span class="val" id="v-target"></span></div>
+        <input type="range" id="target" min="32" max="512" step="8" value="72" oninput="paramsChanged()"><small>Size of each OUTPUT file. Iceberg default: the table’s write target (512 MB).</small></div>
+      <div class="param"><div class="top"><code>max-file-group-size-bytes</code><span class="val" id="v-group"></span></div>
+        <input type="range" id="group" min="50" max="1000" step="10" value="100" oninput="paramsChanged()"><small>Max INPUT per rewrite group (one unit of work). Default: 100 GB.</small></div>
+      <div class="param"><div class="top"><code>max-concurrent-file-group-rewrites</code><span class="val" id="v-conc"></span></div>
+        <input type="range" id="conc" min="1" max="8" step="1" value="2" oninput="paramsChanged()"><small>Groups rewritten at the same time. More = faster, more compute. Default: 5.</small></div>
+      <div class="param"><div class="top"><code>partial-progress.enabled</code><span class="val" id="v-pp"></span></div>
+        <label class="tg" style="margin-top:6px"><input type="checkbox" id="pp" onchange="paramsChanged()"> commit groups as they finish</label><small>Off (default): one commit at the very end.</small></div>
+      <div class="param" id="pmc-box"><div class="top"><code>partial-progress.max-commits</code><span class="val" id="v-pmc"></span></div>
+        <input type="range" id="pmc" min="1" max="10" step="1" value="3" oninput="paramsChanged()"><small>Upper limit on commits. Only used when partial progress is on. Default: 10.</small></div>
+    </div>
+    <div class="pipe" style="margin-top:14px">
+      <div class="step" id="c1"><div class="k">1 · Identify candidates</div><div class="v" id="c1v">–</div></div>
+      <div class="step" id="c2"><div class="k">2 · Form rewrite groups</div><div class="v" id="c2v">–</div></div>
+      <div class="step" id="c3"><div class="k">3 · Rewrite (bin-pack)</div><div class="v" id="c3v">–</div></div>
+      <div class="step" id="c4"><div class="k">4 · Commit</div><div class="v" id="c4v">–</div></div>
+    </div>
+    <div class="groups" id="groups"></div>
+    <div class="commits" id="commits"></div>
+    <p class="note">Candidates are files smaller than 75% of the target size (Iceberg’s default <code>min-file-size-bytes</code>). Groups never mix partitions. Readers on the old snapshot keep working while the rewrite runs; new readers see the compacted layout after the commit.</p>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2>Automate it: maintenance policy</h2>
+    <div class="policy">
+      <label class="tg"><input type="checkbox" id="pol" onchange="policyChanged()"> Policy on</label>
+      <select id="trig" onchange="policyChanged()">
+        <option value="event">Event: when small files ≥</option>
+        <option value="schedule">Schedule: every N commits</option>
+      </select>
+      <input type="number" id="trigN" value="25" min="2" max="500" onchange="policyChanged()">
+      <label class="tg"><input type="checkbox" id="polExp" checked> also expire + clean up</label>
+      <span class="pill" id="polState">off</span>
+    </div>
+    <p class="note">Turn this on, then tick “Keep streaming”. Instead of compacting by hand, the policy watches the table’s state (or the clock) and runs maintenance for you: the idea behind managed table optimizers.</p>
+  </div>
+
   <div class="card" style="margin-top:16px">
     <h2>What just happened</h2>
     <div class="log" id="log"></div>
-    <p class="note">Numbers are a simple, illustrative cost model (fixed cost per file opened and per manifest read), not a benchmark. Run the lab to get real numbers from Spark and DuckDB.</p>
+    <p class="note">Times come from a simple illustrative cost model (fixed cost per manifest read and per file opened, plus a cost per MB scanned). It shows the shape of the problem, not a benchmark. Run the lab for real numbers from Spark and DuckDB.</p>
   </div>
 </div>
 
 <script>
-const ROWS_PER_BATCH = 50, BIG_ROWS = 2000;
-const COST = {planBase:40, perManifest:6, perFileOpen:14, perKRows:2, catalogQuery:12, perKInlined:4};
-let S, autoTimer=null, busy=false, nextId=1;
+const COST = {planBase:40, perManifest:6, perFileOpen:14, perMB:1.0, catalogQuery:12, perInlinedRow:0.05};
+const DL_ROWS = 8;            // tiny DuckLake insert: a few rows
+const DL_FILE_MB = 0.02;      // tiny Parquet file when inlining is off
+let S, autoTimer=null, busy=false, nextId=1, lastPolicyAt=0;
+const $ = id => document.getElementById(id);
 
 function fresh(mode){
-  return {mode, writes:0, rows:0, files:[], snapshots:0, manifestsLive:0, manifestsS3:0, metaS3:0, inlined:0, history:[], compactedSinceExpire:false};
+  return {mode, writes:0, mb:0, files:[], snapshots:0, manifestsLive:0, manifestsS3:0, metaS3:0, inlinedRows:0, history:[], compactedSinceExpire:false};
 }
+function P(){ return {target:+$('target').value, group:+$('group').value, conc:+$('conc').value, pp:$('pp').checked, pmc:+$('pmc').value}; }
+function parts(){ return S && S.mode==='iceberg' && $('partd').checked ? 2 : 1; }
+
 function setMode(m){
   if(busy) return;
-  stopAuto(); S = fresh(m);
-  document.getElementById('m-ice').classList.toggle('on', m==='iceberg');
-  document.getElementById('m-dl').classList.toggle('on', m==='ducklake');
-  document.getElementById('fix-ice').style.display = m==='iceberg' ? '' : 'none';
-  document.getElementById('fix-dl').style.display = m==='ducklake' ? '' : 'none';
-  document.getElementById('log').innerHTML='';
-  log(m==='iceberg' ? 'Iceberg table created. Every write adds a data file, a manifest, a snapshot and a metadata.json.'
+  stopAuto(); S = fresh(m); lastPolicyAt=0;
+  $('m-ice').classList.toggle('on', m==='iceberg'); $('m-dl').classList.toggle('on', m==='ducklake');
+  $('fix-ice').classList.toggle('hide', m!=='iceberg'); $('fix-dl').classList.toggle('hide', m!=='ducklake');
+  $('compaction-card').classList.toggle('hide', m!=='iceberg'); $('partd-wrap').classList.toggle('hide', m!=='iceberg');
+  $('w-title').textContent = m==='iceberg' ? 'Streaming job (e.g. Flink)' : 'App inserts';
+  $('w-sub').textContent = m==='iceberg' ? 'High-frequency micro-batches, a few MB each' : 'Tiny inserts, a few rows each: the case inlining is built for';
+  $('log').innerHTML=''; clearCompactionView();
+  log(m==='iceberg' ? 'Iceberg table created. Every commit adds data file(s), a manifest, a snapshot and a metadata.json.'
                     : 'DuckLake table created. Metadata lives as rows in a SQL catalog; small inserts can be inlined there.');
   render();
 }
 function reset(){ setMode(S.mode); }
+function togglePart(){ log(parts()===2 ? 'Partitioning by day: each commit now writes one file per day it touches. More files, faster.' : 'Partitioning off.', 'info'); }
 function log(msg, cls){
-  const el=document.getElementById('log');
-  const d=document.createElement('div'); if(cls) d.className=cls;
+  const el=$('log'); const d=document.createElement('div'); if(cls) d.className=cls;
   d.textContent='› '+msg; el.appendChild(d); el.scrollTop=el.scrollHeight;
 }
 const live = () => S.files.filter(f=>f.live);
 const fmtMs = ms => ms>=1000 ? (ms/1000).toFixed(1)+' s' : Math.round(ms)+' ms';
-const fmtSize = rows => rows>=1000 ? (rows/1000).toFixed(1)+' MB' : rows+' KB'; // ~1 KB per row
+const fmtMB = mb => mb>=1000 ? (mb/1000).toFixed(2)+' GB' : (mb>=10 ? Math.round(mb)+' MB' : mb>=1 ? mb.toFixed(1)+' MB' : Math.round(mb*1000)+' KB');
 
 function addBatch(){
-  S.writes++; S.rows += ROWS_PER_BATCH; S.snapshots++;
-  const inlining = S.mode==='ducklake' && document.getElementById('inl').checked;
-  if(inlining){ S.inlined += ROWS_PER_BATCH; return null; }
-  const f={id:nextId++, rows:ROWS_PER_BATCH, big:false, live:true};
-  S.files.push(f);
-  if(S.mode==='iceberg'){ S.manifestsLive++; S.manifestsS3++; S.metaS3++; }
-  return f.id;
+  S.writes++; S.snapshots++;
+  if(S.mode==='ducklake'){
+    if($('inl').checked){ S.inlinedRows += DL_ROWS; S.mb += DL_FILE_MB; return null; }
+    const f={id:nextId++, mb:DL_FILE_MB, p:0, live:true, big:false}; S.files.push(f); S.mb+=f.mb; return f.id;
+  }
+  let lastId=null;
+  for(let p=0;p<parts();p++){
+    const mb = (2+Math.random()*8)/parts();
+    const f={id:nextId++, mb, p, live:true, big:false}; S.files.push(f); S.mb+=mb; lastId=f.id;
+  }
+  S.manifestsLive++; S.manifestsS3++; S.metaS3++;
+  return lastId;
 }
 
 function stream(n){
   if(busy) return; busy=true; setButtons(false);
-  const orb=document.getElementById('orb'); orb.classList.add('live');
+  $('orb').classList.add('live');
+  const filesPer = S.mode==='iceberg' ? parts() : 1;
   let i=0;
   const tick=()=>{
-    const id=addBatch(); render(id);
+    const id=addBatch(); render(id); policyCheck();
     if(++i<n) setTimeout(tick, 90);
-    else { orb.classList.remove('live'); busy=false; setButtons(true);
-      log(`Streamed ${n} micro-batches (${n*ROWS_PER_BATCH} rows).` + (S.mode==='ducklake'&&document.getElementById('inl').checked ? ' All inlined in the catalog: zero new files.' : ` That's ${n} new tiny files.`), 'warn'); render(); }
+    else { $('orb').classList.remove('live'); busy=false; setButtons(true);
+      log(`Streamed ${n} commits.` + (S.mode==='ducklake'&&$('inl').checked ? ' All inlined in the catalog: zero new files.' : ` That's ${n*filesPer} new small files.`), 'warn'); render(); }
   };
   tick();
 }
 function toggleAuto(){
-  if(document.getElementById('auto').checked){
-    document.getElementById('orb').classList.add('live');
-    autoTimer=setInterval(()=>{ if(!busy){ const id=addBatch(); render(id);} }, 400);
+  if($('auto').checked){
+    $('orb').classList.add('live');
+    autoTimer=setInterval(()=>{ if(!busy){ const id=addBatch(); render(id); policyCheck(); } }, 350);
     log('Streaming continuously…','warn');
   } else stopAuto();
 }
 function stopAuto(){
   if(autoTimer){ clearInterval(autoTimer); autoTimer=null; log('Streaming paused.'); }
-  const a=document.getElementById('auto'); if(a) a.checked=false;
-  const o=document.getElementById('orb'); if(o) o.classList.remove('live');
+  const a=$('auto'); if(a) a.checked=false;
+  const o=$('orb'); if(o) o.classList.remove('live');
 }
 
 function cost(){
-  const L=live(); const rows=L.reduce((a,f)=>a+f.rows,0);
-  let plan, open=L.length, scan;
-  if(S.mode==='iceberg'){ plan = COST.planBase + COST.perManifest*S.manifestsLive; }
-  else { plan = COST.catalogQuery + COST.perKInlined*S.inlined/1000*10; }
-  const openMs = COST.perFileOpen*open;
-  scan = COST.perKRows*(rows+S.inlined)/1000*10;
-  return {plan, openMs, open, scan, rows:rows+S.inlined, total:plan+openMs+scan,
-          requests: open + (S.mode==='iceberg' ? S.manifestsLive+2 : 0)};
+  const L=live(); const mb=L.reduce((a,f)=>a+f.mb,0);
+  const plan = S.mode==='iceberg' ? COST.planBase + COST.perManifest*S.manifestsLive : COST.catalogQuery + COST.perInlinedRow*S.inlinedRows;
+  const openMs = COST.perFileOpen*L.length;
+  const scan = COST.perMB*mb + (S.mode==='ducklake' ? COST.perInlinedRow*S.inlinedRows : 0);
+  return {plan, openMs, open:L.length, scan, mb, total:plan+openMs+scan,
+          requests: L.length + (S.mode==='iceberg' ? S.manifestsLive+2 : 0)};
 }
 
 function runQuery(){
   if(busy) return; busy=true; setButtons(false);
   const c=cost(); const ids=['p1','p2','p3'];
-  ['q-plan','q-open','q-scan','q-total'].forEach(i=>document.getElementById(i).textContent='…');
+  ['q-plan','q-open','q-scan','q-total'].forEach(i=>$(i).textContent='…');
   let k=0;
   const show=()=>{
-    ids.forEach((id,j)=>document.getElementById(id).classList.toggle('active', j===k));
-    if(k===0) document.getElementById('q-plan').textContent = S.mode==='iceberg' ? `${S.manifestsLive} manifests` : 'SQL lookup';
-    if(k===1){ document.getElementById('q-open').textContent = `${c.open} files`;
-      document.querySelectorAll('#live .t').forEach(t=>t.classList.add('reading'));}
-    if(k===2) document.getElementById('q-scan').textContent = `${c.rows.toLocaleString()} rows`;
+    ids.forEach((id,j)=>$(id).classList.toggle('active', j===k));
+    if(k===0) $('q-plan').textContent = S.mode==='iceberg' ? `${S.manifestsLive} manifests` : 'SQL lookup';
+    if(k===1){ $('q-open').textContent = `${c.open} files`; document.querySelectorAll('#live .t').forEach(t=>t.classList.add('reading')); }
+    if(k===2) $('q-scan').textContent = S.mode==='ducklake' && S.inlinedRows ? `${fmtMB(c.mb)} + ${S.inlinedRows} inlined rows` : fmtMB(c.mb);
     if(++k<=3) setTimeout(show, 450+Math.min(900, k===2 ? c.openMs/3 : 150));
     else finish();
   };
   const finish=()=>{
-    ids.forEach(id=>document.getElementById(id).classList.remove('active'));
+    ids.forEach(id=>$(id).classList.remove('active'));
     document.querySelectorAll('#live .t').forEach(t=>t.classList.remove('reading'));
-    document.getElementById('q-total').textContent=fmtMs(c.total);
-    document.getElementById('q-req').textContent=c.requests.toLocaleString();
-    S.history.push({ms:c.total, files:c.open, good: c.open<=3 && (S.mode!=='iceberg' || S.manifestsLive<=2)});
+    $('q-total').textContent=fmtMs(c.total); $('q-req').textContent=c.requests.toLocaleString();
+    const smallLive = live().filter(f=>!f.big).length;
+    S.history.push({ms:c.total, files:c.open, good: smallLive<=2 && (S.mode!=='iceberg' || S.manifestsLive<=2)});
     renderHist();
-    log(`Query: plan ${fmtMs(c.plan)} + open ${c.open} files ${fmtMs(c.openMs)} + scan ${fmtMs(c.scan)} = ${fmtMs(c.total)}`, c.open>10?'warn':'ok');
+    log(`Query: plan ${fmtMs(c.plan)} + open/close ${c.open} files ${fmtMs(c.openMs)} + scan ${fmtMs(c.scan)} = ${fmtMs(c.total)}`, c.open>10?'warn':'ok');
     busy=false; setButtons(true);
   };
   show();
 }
 
-function packBig(){
-  const L=live(); if(L.length<2) return 0;
-  const total=L.reduce((a,f)=>a+f.rows,0);
-  L.forEach(f=>f.live=false);
-  let left=total, made=0;
-  while(left>0){ const r=Math.min(BIG_ROWS,left); S.files.push({id:nextId++,rows:r,big:true,live:true}); left-=r; made++; }
-  return {old:L.length, made};
+/* ---------- compaction (bin-pack) ---------- */
+function planCompaction(){
+  const p=P(); const minSize=0.75*p.target;
+  const cands = live().filter(f=>f.mb < minSize);
+  const groups=[];
+  for(let part=0; part<2; part++){
+    const pc = cands.filter(f=>f.p===part).sort((a,b)=>b.mb-a.mb);
+    let cur=null;
+    for(const f of pc){
+      if(!cur || cur.mb + f.mb > p.group){ cur={part, files:[], mb:0}; groups.push(cur); }
+      cur.files.push(f); cur.mb+=f.mb;
+    }
+  }
+  const real = groups.filter(g=>g.files.length>=2);
+  real.forEach((g,i)=>{ g.idx=i+1; g.outs=[]; let left=g.mb; while(left>0.0001){ const o=Math.min(p.target,left); g.outs.push(o); left-=o; } });
+  return {cands, groups:real, p};
 }
-function compact(){
-  if(busy) return;
-  const r=packBig(); if(!r){ log('Nothing to compact.'); return; }
-  S.snapshots++; S.manifestsLive=1; S.manifestsS3++; S.metaS3++; S.compactedSinceExpire=true;
-  log(`Compacted ${r.old} small files into ${r.made} big file(s). Queries now open ${live().length} file(s)…`, 'ok');
-  log(`…but S3 still holds all ${r.old} old files. Storage went UP, not down.`, 'warn');
-  render();
+function applyGroup(g){
+  g.files.forEach(f=>f.live=false);
+  g.outs.forEach(mb=>S.files.push({id:nextId++, mb, p:g.part, live:true, big:true}));
 }
-function expireClean(){
+function commitSnapshot(){ S.snapshots++; S.manifestsS3++; S.metaS3++; }
+
+function clearCompactionView(){
+  ['c1','c2','c3','c4'].forEach(id=>{ $(id).classList.remove('active','done'); $(id+'v').textContent='–'; });
+  $('groups').innerHTML=''; $('commits').innerHTML='';
+}
+
+function compactAnimated(){
   if(busy) return;
+  const plan=planCompaction();
+  if(!plan.groups.length){ log('Nothing worth compacting: fewer than 2 small files in any partition.'); return; }
+  busy=true; setButtons(false); clearCompactionView();
+  $('compaction-card').scrollIntoView({behavior:'smooth', block:'center'});
+  const {groups,p,cands}=plan;
+  const step=(id,txt,state)=>{ $(id).classList.remove('active','done'); if(state) $(id).classList.add(state); if(txt!=null) $(id+'v').textContent=txt; };
+  const wait=ms=>new Promise(r=>setTimeout(r,ms));
+  const hasParts = S.files.some(f=>f.p===1);
+  (async()=>{
+    step('c1',`${cands.length} small files`,'active');
+    const candIds=new Set(cands.map(f=>f.id));
+    document.querySelectorAll('#live .t').forEach(t=>{ if(candIds.has(+t.dataset.id)) t.classList.add('cand'); });
+    log(`Identify candidates: ${cands.length} files under ${fmtMB(0.75*p.target)} (75% of the ${fmtMB(p.target)} target).`, 'info');
+    await wait(900); step('c1',null,'done');
+
+    step('c2',`${groups.length} groups`,'active');
+    const gEls = groups.map(g=>{
+      const d=document.createElement('div'); d.className='grp';
+      d.innerHTML=`<div class="h"><span>Group ${g.idx}${hasParts?' · day '+(g.part+1):''}</span><span>${fmtMB(g.mb)}</span></div>
+        <div class="s">${g.files.length} files in → ${g.outs.length} file(s) out</div><div class="s st">queued</div><div class="bar2"><i></i></div>`;
+      $('groups').appendChild(d); return d; });
+    log(`Form rewrite groups: ${groups.length} group(s), each at most ${fmtMB(p.group)} of input, never mixing partitions.`, 'info');
+    await wait(900); step('c2',null,'done');
+
+    step('c3',`${p.conc} at a time`,'active');
+    const allowed = p.pp ? Math.min(p.pmc, groups.length) : 1;
+    const perCommit = Math.ceil(groups.length/allowed);
+    let pending=[], commits=0;
+    const doCommit=(gs)=>{
+      gs.forEach(g=>{ applyGroup(g); const e=gEls[g.idx-1]; e.className='grp committed'; e.querySelector('.st').textContent='committed'; });
+      commitSnapshot(); commits++;
+      const c=document.createElement('span'); c.className='commit'; c.textContent=`commit ${commits} → snapshot ${S.snapshots}`; $('commits').appendChild(c);
+      render();
+    };
+    $('commits').innerHTML='<span>Commits:</span>';
+    for(let w=0; w<groups.length; w+=p.conc){
+      const wave=groups.slice(w,w+p.conc);
+      wave.forEach(g=>{ const e=gEls[g.idx-1]; e.className='grp run'; e.querySelector('.st').textContent='rewriting…'; e.querySelector('.bar2 i').style.width='100%'; });
+      await wait(800);
+      wave.forEach(g=>{ const e=gEls[g.idx-1]; e.className='grp done'; e.querySelector('.st').textContent='done, waiting to commit'; pending.push(g); });
+      if(p.pp && pending.length>=perCommit && commits<allowed-1){ step('c4','partial…','active'); doCommit(pending); pending=[]; await wait(400); }
+    }
+    step('c3',null,'done'); step('c4',null,'active');
+    if(pending.length) doCommit(pending);
+    await wait(300);
+    step('c4',`${commits} commit${commits>1?'s':''}`,'done');
+    S.manifestsLive=1; S.compactedSinceExpire=true;
+    const outs=groups.reduce((a,g)=>a+g.outs.length,0), ins=groups.reduce((a,g)=>a+g.files.length,0);
+    log(`Rewrote ${ins} small files into ${outs} file(s) in ${commits} commit(s). Same data, new physical layout.`, 'ok');
+    log(`…but S3 still holds the ${ins} old files: old snapshots point to them. Storage went UP, not down.`, 'warn');
+    busy=false; setButtons(true); render();
+  })();
+}
+function compactQuick(){
+  const plan=planCompaction(); if(!plan.groups.length) return 0;
+  plan.groups.forEach(applyGroup); commitSnapshot(); S.manifestsLive=1; S.compactedSinceExpire=true;
+  return plan.groups.reduce((a,g)=>a+g.files.length,0);
+}
+function expireCore(){
   const dead=S.files.filter(f=>!f.live).length, snaps=S.snapshots;
   S.files=S.files.filter(f=>f.live);
-  S.snapshots=Math.min(S.snapshots,1); S.manifestsS3=S.manifestsLive; S.metaS3=Math.min(S.metaS3,1);
-  S.compactedSinceExpire=false;
-  log(`Expired ${Math.max(0,snaps-1)} old snapshots and deleted ${dead} unused files from S3.`, dead? 'ok':'');
-  if(live().some(f=>!f.big) && live().length>3) log('Tip: still many small live files. Compaction is what fixes those.', 'warn');
+  S.snapshots=Math.min(S.snapshots,1); S.manifestsS3=S.manifestsLive; S.metaS3=Math.min(S.metaS3,1); S.compactedSinceExpire=false;
+  return {dead, expired:Math.max(0,snaps-1)};
+}
+function expireClean(){
+  if(busy) return; const r=expireCore();
+  log(`Expired ${r.expired} old snapshots and deleted ${r.dead} unused files from S3.`, r.dead?'ok':'');
+  if(live().filter(f=>!f.big).length>3) log('Still many small live files. Compaction is what fixes those.', 'warn');
   render();
 }
 function rewriteManifests(){
   if(busy) return;
   if(S.manifestsLive<=1){ log('Manifests already tidy.'); return; }
-  const was=S.manifestsLive; S.manifestsLive=1; S.manifestsS3++; S.snapshots++; S.metaS3++;
+  const was=S.manifestsLive; S.manifestsLive=1; commitSnapshot();
   log(`Rewrote ${was} manifests into 1. Planning gets faster; data files unchanged.`, 'ok'); render();
 }
 function checkpoint(){
   if(busy) return;
-  const flushed=S.inlined;
-  if(flushed){ S.files.push({id:nextId++,rows:flushed,big:flushed>=500,live:true}); S.inlined=0; }
-  const r=packBig();
-  const dead=S.files.filter(f=>!f.live).length, snaps=S.snapshots;
-  S.files=S.files.filter(f=>f.live); S.snapshots=Math.min(S.snapshots,1);
-  log(`CHECKPOINT: flushed ${flushed} inlined rows, merged ${r?r.old:0} files, expired ${Math.max(0,snaps-1)} snapshots, deleted ${dead} unused files.`, 'ok');
+  const flushed=S.inlinedRows;
+  if(flushed){ S.files.push({id:nextId++, mb:flushed*DL_FILE_MB/DL_ROWS, p:0, live:true, big:true}); S.inlinedRows=0; }
+  const L=live().filter(f=>!f.big); let merged=0;
+  if(L.length>=2){ const mb=L.reduce((a,f)=>a+f.mb,0); L.forEach(f=>f.live=false); S.files.push({id:nextId++, mb, p:0, live:true, big:true}); merged=L.length; }
+  const r=expireCore();
+  log(`CHECKPOINT: flushed ${flushed} inlined rows, merged ${merged} small files, expired ${r.expired} snapshots, deleted ${r.dead} unused files.`, 'ok');
   log('(Real DuckLake keeps old files for a retention window. This shows retention set to now.)');
   render();
 }
 
-function setButtons(on){ document.querySelectorAll('.bar .btn').forEach(b=>b.disabled=!on); }
+/* ---------- policy ---------- */
+function policyChanged(){
+  const on=$('pol').checked; $('polState').textContent = on ? 'watching' : 'off'; $('polState').classList.toggle('on', on);
+  lastPolicyAt=S.writes;
+  if(on) log(`Maintenance policy on: ${$('trig').value==='event' ? 'trigger when small files ≥ '+$('trigN').value : 'run every '+$('trigN').value+' commits'}.`, 'info');
+}
+function policyCheck(){
+  if(!$('pol').checked) return;
+  const n=+$('trigN').value;
+  const small=live().filter(f=>!f.big).length + (S.mode==='ducklake'? Math.floor(S.inlinedRows/DL_ROWS):0);
+  const fire = $('trig').value==='event' ? small>=n : (S.writes-lastPolicyAt)>=n;
+  if(!fire) return;
+  lastPolicyAt=S.writes;
+  if(S.mode==='ducklake'){ log('Policy triggered → CHECKPOINT.', 'info'); checkpoint(); $('polState').textContent='ran at commit '+S.writes; return; }
+  const c=compactQuick(); let msg=`Policy triggered (${$('trig').value==='event' ? small+' small files' : 'schedule'}) → compacted ${c} files`;
+  if($('polExp').checked){ const r=expireCore(); msg+=`, expired ${r.expired} snapshots, deleted ${r.dead} files`; }
+  log(msg+'.', 'info'); $('polState').textContent='ran at commit '+S.writes; render();
+}
 
+/* ---------- render ---------- */
+function setButtons(on){ document.querySelectorAll('.bar .btn').forEach(b=>b.disabled=!on); }
 function tile(f, newId){
-  const d=document.createElement('div');
+  const d=document.createElement('div'); d.dataset.id=f.id;
   d.className='t '+(f.big?'big':'small')+(f.live?'':' dead')+(f.id===newId?' new':'');
-  if(f.big) d.textContent = fmtSize(f.rows);
+  if(f.big){ d.style.width=Math.max(44, Math.min(220, 30+f.mb*0.9))+'px'; d.textContent=fmtMB(f.mb); }
   if(f.id===newId) setTimeout(()=>d.classList.remove('new'),250);
   return d;
 }
 function render(newId){
   const ice=S.mode==='iceberg';
-  const inl=!ice && document.getElementById('inl').checked;
-  document.getElementById('table-title').textContent = ice ? 'Iceberg table: files the query must read' : 'DuckLake table: files the query must read';
-  const L=live(); const liveEl=document.getElementById('live'); liveEl.innerHTML='';
-  L.forEach(f=>liveEl.appendChild(tile(f,newId)));
-  const s3=document.getElementById('s3'); s3.innerHTML='';
-  S.files.forEach(f=>s3.appendChild(tile(f,newId)));
-  document.getElementById('inline-box').classList.toggle('on', !ice);
-  document.getElementById('inline-rows').textContent=S.inlined.toLocaleString();
-  document.getElementById('inline-meter').style.width=Math.min(100,S.inlined/50)+'%';
-  const set=(id,v,cls)=>{const e=document.getElementById(id); e.textContent=v; e.className='v'+(cls?' '+cls:'');};
-  set('s-writes',S.writes); set('s-rows',S.rows.toLocaleString());
-  set('s-live',L.length, L.length>10?'bad':(L.length&&L.length<=3?'good':''));
-  const avg = L.length ? L.reduce((a,f)=>a+f.rows,0)/L.length : 0;
-  set('s-avg', L.length?fmtSize(Math.round(avg)):'–', L.length?(avg<200?'bad':'good'):'');
+  $('table-title').textContent = (ice?'Iceberg':'DuckLake')+' table: files the query must read';
+  const L=live(); const liveEl=$('live'); liveEl.innerHTML='';
+  const nParts = S.files.some(f=>f.p===1) ? 2 : 1;
+  for(let p=0;p<nParts;p++){
+    const wrap=document.createElement('div');
+    if(nParts===2){ const lab=document.createElement('div'); lab.className='plabel'; lab.textContent=`partition: day ${p+1}`; wrap.appendChild(lab); }
+    const t=document.createElement('div'); t.className='tiles'; t.style.maxHeight=nParts===2?'120px':'240px';
+    L.filter(f=>f.p===p).forEach(f=>t.appendChild(tile(f,newId)));
+    wrap.appendChild(t); liveEl.appendChild(wrap);
+  }
+  const s3=$('s3'); s3.innerHTML=''; S.files.forEach(f=>s3.appendChild(tile(f,newId)));
+  $('inline-box').classList.toggle('on', !ice);
+  $('inline-rows').textContent=S.inlinedRows.toLocaleString();
+  $('inline-meter').style.width=Math.min(100,S.inlinedRows/4)+'%';
+  const set=(id,v,cls)=>{const e=$(id); e.textContent=v; e.className='v'+(cls?' '+cls:'');};
+  set('s-writes',S.writes); set('s-mb',fmtMB(S.mb));
+  const smallLive=L.filter(f=>!f.big).length;
+  set('s-live',L.length, smallLive>10?'bad':(L.length&&smallLive<=2?'good':''));
+  const avg = L.length ? L.reduce((a,f)=>a+f.mb,0)/L.length : 0;
+  set('s-avg', L.length?fmtMB(avg):'–', L.length && ice ? (avg<0.5*P().target?'bad':'good') : '');
   set('s-snap',S.snapshots, S.snapshots>20?'bad':'');
-  document.getElementById('k-man').textContent = ice ? 'Manifests to plan' : 'Catalog rows (SQL)';
+  $('k-man').textContent = ice ? 'Manifests to plan' : 'Catalog rows (SQL)';
   set('s-man', ice ? S.manifestsLive : 'n/a', ice && S.manifestsLive>10 ? 'bad':'');
   const dead=S.files.filter(f=>!f.live).length;
   set('s-s3',S.files.length, S.files.length>10?'bad':'');
-  document.getElementById('k-meta').textContent = ice ? 'Manifests + metadata.json' : 'Metadata files';
+  $('k-meta').textContent = ice ? 'Manifests + metadata.json' : 'Metadata files';
   set('s-meta', ice ? (S.manifestsS3+S.metaS3) : '0 (SQL rows)', ice && S.manifestsS3+S.metaS3>20 ? 'bad':'');
   set('s-dead',dead, dead?'bad':'');
-  document.getElementById('trap').classList.toggle('on', ice && S.compactedSinceExpire && dead>0);
+  $('trap').classList.toggle('on', ice && S.compactedSinceExpire && dead>0);
   renderHist();
 }
 function renderHist(){
-  const h=document.getElementById('hist'); h.innerHTML='';
+  const h=$('hist'); h.innerHTML='';
   const max=Math.max(200,...S.history.map(x=>x.ms));
   S.history.slice(-14).forEach(x=>{
     const d=document.createElement('div'); d.className='hb'+(x.good?' good':'');
@@ -358,6 +537,14 @@ function renderHist(){
     h.appendChild(d);
   });
 }
+function paramsChanged(){
+  const p=P();
+  $('v-target').textContent=fmtMB(p.target); $('v-group').textContent=fmtMB(p.group); $('v-conc').textContent=p.conc;
+  $('v-pp').textContent=p.pp?'true':'false'; $('v-pmc').textContent=p.pmc;
+  $('pmc-box').style.opacity = p.pp ? 1 : .45;
+  if(S) render();
+}
+paramsChanged();
 setMode('iceberg');
 </script>
 </body>
