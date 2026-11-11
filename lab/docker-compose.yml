@@ -1,0 +1,150 @@
+# Rotten Lakehouse Lab
+# Same small-write workload into Iceberg (Lakekeeper catalog) and DuckLake (Postgres catalog),
+# both storing data on Silo (S3-compatible, maintained MinIO fork).
+#
+# Based on lakekeeper/lakekeeper examples/minimal.
+
+x-lakekeeper-env: &lakekeeper-env
+  LAKEKEEPER__PG_ENCRYPTION_KEY: This-is-NOT-Secure!
+  LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://postgres:postgres@db:5432/postgres
+  LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://postgres:postgres@db:5432/postgres
+  RUST_LOG: info
+
+services:
+  # ---------- Postgres: Lakekeeper's backend AND the DuckLake catalog ----------
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./init/create-ducklake-db.sql:/docker-entrypoint-initdb.d/01-ducklake.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 2s
+      timeout: 10s
+      retries: 10
+      start_period: 10s
+    ports:
+      - "5432:5432"
+
+  # ---------- Object storage ----------
+  silo:
+    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: silo-root-user
+      MINIO_ROOT_PASSWORD: silo-root-password
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 2s
+      timeout: 10s
+      retries: 10
+      start_period: 15s
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console: watch the files pile up here
+
+  create-buckets:
+    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
+    depends_on:
+      silo:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        mc alias set local http://silo:9000 silo-root-user silo-root-password &&
+        mc mb --ignore-existing local/iceberg &&
+        mc mb --ignore-existing local/ducklake
+
+  # ---------- Lakekeeper (Iceberg REST catalog) ----------
+  migrate:
+    image: quay.io/lakekeeper/catalog:latest
+    environment: *lakekeeper-env
+    command: ["migrate"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  lakekeeper:
+    image: quay.io/lakekeeper/catalog:latest
+    environment: *lakekeeper-env
+    command: ["serve"]
+    healthcheck:
+      test: ["CMD", "/home/nonroot/lakekeeper", "healthcheck"]
+      interval: 2s
+      timeout: 10s
+      retries: 10
+      start_period: 5s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      silo:
+        condition: service_healthy
+      create-buckets:
+        condition: service_completed_successfully
+    ports:
+      - "8181:8181"   # UI at http://localhost:8181/ui
+
+  bootstrap:
+    image: curlimages/curl
+    restart: "no"
+    depends_on:
+      lakekeeper:
+        condition: service_healthy
+    command:
+      - -sS
+      - -w
+      - "%{http_code}\n"
+      - -X
+      - POST
+      - http://lakekeeper:8181/management/v1/bootstrap
+      - -H
+      - "Content-Type: application/json"
+      - --data
+      - '{"accept-terms-of-use": true}'
+
+  create-warehouse:
+    image: curlimages/curl
+    restart: "no"
+    depends_on:
+      bootstrap:
+        condition: service_completed_successfully
+    volumes:
+      - ./init/create-warehouse.json:/home/curl_user/create-warehouse.json:ro
+    command:
+      - -sS
+      - -w
+      - "%{http_code}\n"
+      - -X
+      - POST
+      - http://lakekeeper:8181/management/v1/warehouse
+      - -H
+      - "Content-Type: application/json"
+      - --data
+      - "@create-warehouse.json"
+
+  # ---------- Lab: Spark (Iceberg) + DuckDB (DuckLake) + Jupyter ----------
+  lab:
+    image: quay.io/jupyter/pyspark-notebook:2024-10-14
+    depends_on:
+      create-warehouse:
+        condition: service_completed_successfully
+    environment:
+      CATALOG_URL: http://lakekeeper:8181/catalog
+      WAREHOUSE: demo
+      ICEBERG_VERSION: "1.10.0"
+    # Install DuckDB 2.0 on start, then run Jupyter (no token, local lab only)
+    command: >
+      bash -c "pip install -q duckdb==2.0.0 &&
+               start-notebook.sh --NotebookApp.token=''"
+    volumes:
+      - ./lab:/home/jovyan/lab
+      - ivy-cache:/home/jovyan/.ivy2   # keep Spark jars between runs
+    ports:
+      - "8888:8888"   # Jupyter
+      - "4040:4040"   # Spark UI
+
+volumes:
+  ivy-cache:

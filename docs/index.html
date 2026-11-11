@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rotten Lakehouse Simulator</title>
+<style>
+  :root{
+    --bg:#13201A; --panel:#1B2B23; --panel2:#22362C; --line:#2F4A3C;
+    --text:#E9EDE3; --muted:#9FB0A3; --green:#A6CF4E; --amber:#E8A33D; --grey:#56675C; --red:#E07A5F;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1280px;margin:0 auto;padding:20px}
+  header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+  h1{font-size:22px;margin:0;letter-spacing:.2px}
+  h1 span{color:var(--green)}
+  .modes{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:3px}
+  .modes button{background:none;border:0;color:var(--muted);padding:8px 14px;border-radius:8px;font:inherit;cursor:pointer}
+  .modes button.on{background:var(--panel2);color:var(--text);font-weight:600}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;align-items:center}
+  .btn{background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:9px 14px;border-radius:10px;font:inherit;cursor:pointer;display:inline-flex;gap:8px;align-items:center}
+  .btn:hover{border-color:var(--green)}
+  .btn.primary{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600}
+  .btn.fix{border-color:#4E6B2A}
+  .btn.ghost{background:none;color:var(--muted)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .sep{width:1px;height:28px;background:var(--line);margin:0 4px}
+  .grid{display:grid;grid-template-columns:260px 1fr;gap:16px}
+  @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  .card h2{font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:600}
+  .writer{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px;min-height:220px}
+  .orb{width:96px;height:96px;border-radius:50%;background:var(--panel2);display:grid;place-items:center;font-size:40px;transition:box-shadow .2s}
+  .orb.live{box-shadow:0 0 0 6px rgba(166,207,78,.18),0 0 30px rgba(166,207,78,.35)}
+  .writer b{font-size:17px}
+  .writer small{color:var(--muted)}
+  .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+  .stat{background:var(--panel2);border-radius:10px;padding:10px}
+  .stat .k{font-size:12px;color:var(--muted)}
+  .stat .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+  .stat .v.bad{color:var(--amber)} .stat .v.good{color:var(--green)}
+  .tiles{display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start;min-height:120px;max-height:260px;overflow:auto;padding:2px}
+  .t{border-radius:3px;transition:all .25s}
+  .t.small{width:20px;height:13px;background:var(--amber)}
+  .t.big{width:120px;height:44px;background:var(--green);display:grid;place-items:center;color:var(--bg);font-size:12px;font-weight:700}
+  .t.dead{background:var(--grey);opacity:.55}
+  .t.new{transform:scale(1.5);box-shadow:0 0 10px var(--amber)}
+  .t.reading{outline:2px solid #fff}
+  .inline{margin-top:10px;display:none}
+  .inline.on{display:block}
+  .meter{height:14px;background:var(--panel2);border-radius:7px;overflow:hidden}
+  .meter i{display:block;height:100%;background:var(--green);width:0;transition:width .25s}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+  @media (max-width:900px){.row2{grid-template-columns:1fr}}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin-top:8px}
+  .legend span::before{content:"";display:inline-block;width:12px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle;background:var(--c)}
+  .pipe{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap}
+  .step{flex:1;min-width:120px;background:var(--panel2);border-radius:10px;padding:10px;border:1px solid transparent;transition:border-color .2s}
+  .step.active{border-color:var(--amber)}
+  .step .k{font-size:12px;color:var(--muted)}
+  .step .v{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+  .total{margin-top:12px;display:flex;align-items:baseline;gap:10px}
+  .total .v{font-size:34px;font-weight:800;font-variant-numeric:tabular-nums}
+  .hist{display:flex;align-items:flex-end;gap:6px;height:130px;margin-top:12px;border-bottom:1px solid var(--line);padding-bottom:2px;overflow-x:auto}
+  .hb{min-width:34px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--muted)}
+  .hb i{display:block;width:26px;border-radius:4px 4px 0 0;background:var(--amber);transition:height .4s}
+  .hb.good i{background:var(--green)}
+  .log{font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);height:150px;overflow:auto;background:#0E1813;border-radius:10px;padding:10px}
+  .log .ok{color:var(--green)} .log .warn{color:var(--amber)}
+  .note{font-size:12.5px;color:var(--muted);margin-top:14px}
+  .callout{margin-top:10px;padding:10px 12px;border-left:3px solid var(--amber);background:#2A2A1C;border-radius:6px;font-size:14px;display:none}
+  .callout.on{display:block}
+  label.tg{display:inline-flex;gap:6px;align-items:center;color:var(--muted);font-size:14px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Rotten Lakehouse <span>Simulator</span></h1>
+    <div class="modes" role="tablist">
+      <button id="m-ice" class="on" onclick="setMode('iceberg')">Apache Iceberg</button>
+      <button id="m-dl" onclick="setMode('ducklake')">DuckLake</button>
+    </div>
+  </header>
+
+  <div class="bar">
+    <button class="btn primary" id="b-stream" onclick="stream(20)">▶ Stream 20 micro-batches</button>
+    <label class="tg"><input type="checkbox" id="auto" onchange="toggleAuto()"> Keep streaming</label>
+    <button class="btn" id="b-query" onclick="runQuery()">🔍 Run analytical query</button>
+    <span class="sep"></span>
+    <span id="fix-ice">
+      <button class="btn fix" onclick="compact()">🧱 Compact files</button>
+      <button class="btn fix" onclick="expireClean()">🗑️ Expire + clean up</button>
+      <button class="btn fix" onclick="rewriteManifests()">📇 Rewrite manifests</button>
+    </span>
+    <span id="fix-dl" style="display:none">
+      <label class="tg"><input type="checkbox" id="inl" checked onchange="render()"> Data inlining</label>
+      <button class="btn fix" onclick="checkpoint()">✨ CHECKPOINT</button>
+    </span>
+    <button class="btn ghost" onclick="reset()">↺ Reset</button>
+  </div>
+
+  <div class="grid">
+    <div class="card writer">
+      <div class="orb" id="orb">〰️</div>
+      <b>Streaming job</b>
+      <small>Small micro-batches (50 rows each), every few seconds</small>
+      <div class="stats" style="width:100%">
+        <div class="stat"><div class="k">Writes</div><div class="v" id="s-writes">0</div></div>
+        <div class="stat"><div class="k">Rows</div><div class="v" id="s-rows">0</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 id="table-title">Iceberg table: files the query must read</h2>
+      <div class="tiles" id="live"></div>
+      <div class="inline" id="inline-box">
+        <h2 style="margin-top:12px">Inlined rows in the catalog database (no files)</h2>
+        <div class="meter"><i id="inline-meter"></i></div>
+        <div class="legend"><span style="--c:var(--green)"><b id="inline-rows">0</b>&nbsp;rows waiting to be flushed to Parquet</span></div>
+      </div>
+      <div class="stats" style="grid-template-columns:repeat(4,1fr)">
+        <div class="stat"><div class="k">Live data files</div><div class="v" id="s-live">0</div></div>
+        <div class="stat"><div class="k">Avg file size</div><div class="v" id="s-avg">–</div></div>
+        <div class="stat"><div class="k">Snapshots</div><div class="v" id="s-snap">0</div></div>
+        <div class="stat"><div class="k" id="k-man">Manifests to plan</div><div class="v" id="s-man">0</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row2">
+    <div class="card">
+      <h2>On object storage (what you pay for)</h2>
+      <div class="tiles" id="s3" style="max-height:180px"></div>
+      <div class="legend">
+        <span style="--c:var(--amber)">small file, in use</span>
+        <span style="--c:var(--green)">compacted file, in use</span>
+        <span style="--c:var(--grey)">only old snapshots point here</span>
+      </div>
+      <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat"><div class="k">Data files on S3</div><div class="v" id="s-s3">0</div></div>
+        <div class="stat"><div class="k" id="k-meta">Metadata files on S3</div><div class="v" id="s-meta">0</div></div>
+        <div class="stat"><div class="k">Wasted (unused) files</div><div class="v" id="s-dead">0</div></div>
+      </div>
+      <div class="callout" id="trap">Compacted, but nothing was deleted. The old small files are still on S3 because old snapshots point to them. Expire + clean up to get the space back.</div>
+    </div>
+
+    <div class="card">
+      <h2>The query engine</h2>
+      <div class="pipe">
+        <div class="step" id="p1"><div class="k">1 · Plan</div><div class="v" id="q-plan">–</div></div>
+        <div class="step" id="p2"><div class="k">2 · Open files</div><div class="v" id="q-open">–</div></div>
+        <div class="step" id="p3"><div class="k">3 · Scan rows</div><div class="v" id="q-scan">–</div></div>
+      </div>
+      <div class="total"><span class="v" id="q-total">–</span><span style="color:var(--muted)">simulated query time · <b id="q-req">0</b> storage requests</span></div>
+      <div class="hist" id="hist"></div>
+      <div class="legend"><span style="--c:var(--amber)">query on a rotten table</span><span style="--c:var(--green)">after cleanup</span></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <h2>What just happened</h2>
+    <div class="log" id="log"></div>
+    <p class="note">Numbers are a simple, illustrative cost model (fixed cost per file opened and per manifest read), not a benchmark. Run the lab to get real numbers from Spark and DuckDB.</p>
+  </div>
+</div>
+
+<script>
+const ROWS_PER_BATCH = 50, BIG_ROWS = 2000;
+const COST = {planBase:40, perManifest:6, perFileOpen:14, perKRows:2, catalogQuery:12, perKInlined:4};
+let S, autoTimer=null, busy=false, nextId=1;
+
+function fresh(mode){
+  return {mode, writes:0, rows:0, files:[], snapshots:0, manifestsLive:0, manifestsS3:0, metaS3:0, inlined:0, history:[], compactedSinceExpire:false};
+}
+function setMode(m){
+  if(busy) return;
+  stopAuto(); S = fresh(m);
+  document.getElementById('m-ice').classList.toggle('on', m==='iceberg');
+  document.getElementById('m-dl').classList.toggle('on', m==='ducklake');
+  document.getElementById('fix-ice').style.display = m==='iceberg' ? '' : 'none';
+  document.getElementById('fix-dl').style.display = m==='ducklake' ? '' : 'none';
+  document.getElementById('log').innerHTML='';
+  log(m==='iceberg' ? 'Iceberg table created. Every write adds a data file, a manifest, a snapshot and a metadata.json.'
+                    : 'DuckLake table created. Metadata lives as rows in a SQL catalog; small inserts can be inlined there.');
+  render();
+}
+function reset(){ setMode(S.mode); }
+function log(msg, cls){
+  const el=document.getElementById('log');
+  const d=document.createElement('div'); if(cls) d.className=cls;
+  d.textContent='› '+msg; el.appendChild(d); el.scrollTop=el.scrollHeight;
+}
+const live = () => S.files.filter(f=>f.live);
+const fmtMs = ms => ms>=1000 ? (ms/1000).toFixed(1)+' s' : Math.round(ms)+' ms';
+const fmtSize = rows => rows>=1000 ? (rows/1000).toFixed(1)+' MB' : rows+' KB'; // ~1 KB per row
+
+function addBatch(){
+  S.writes++; S.rows += ROWS_PER_BATCH; S.snapshots++;
+  const inlining = S.mode==='ducklake' && document.getElementById('inl').checked;
+  if(inlining){ S.inlined += ROWS_PER_BATCH; return null; }
+  const f={id:nextId++, rows:ROWS_PER_BATCH, big:false, live:true};
+  S.files.push(f);
+  if(S.mode==='iceberg'){ S.manifestsLive++; S.manifestsS3++; S.metaS3++; }
+  return f.id;
+}
+
+function stream(n){
+  if(busy) return; busy=true; setButtons(false);
+  const orb=document.getElementById('orb'); orb.classList.add('live');
+  let i=0;
+  const tick=()=>{
+    const id=addBatch(); render(id);
+    if(++i<n) setTimeout(tick, 90);
+    else { orb.classList.remove('live'); busy=false; setButtons(true);
+      log(`Streamed ${n} micro-batches (${n*ROWS_PER_BATCH} rows).` + (S.mode==='ducklake'&&document.getElementById('inl').checked ? ' All inlined in the catalog: zero new files.' : ` That's ${n} new tiny files.`), 'warn'); render(); }
+  };
+  tick();
+}
+function toggleAuto(){
+  if(document.getElementById('auto').checked){
+    document.getElementById('orb').classList.add('live');
+    autoTimer=setInterval(()=>{ if(!busy){ const id=addBatch(); render(id);} }, 400);
+    log('Streaming continuously…','warn');
+  } else stopAuto();
+}
+function stopAuto(){
+  if(autoTimer){ clearInterval(autoTimer); autoTimer=null; log('Streaming paused.'); }
+  const a=document.getElementById('auto'); if(a) a.checked=false;
+  const o=document.getElementById('orb'); if(o) o.classList.remove('live');
+}
+
+function cost(){
+  const L=live(); const rows=L.reduce((a,f)=>a+f.rows,0);
+  let plan, open=L.length, scan;
+  if(S.mode==='iceberg'){ plan = COST.planBase + COST.perManifest*S.manifestsLive; }
+  else { plan = COST.catalogQuery + COST.perKInlined*S.inlined/1000*10; }
+  const openMs = COST.perFileOpen*open;
+  scan = COST.perKRows*(rows+S.inlined)/1000*10;
+  return {plan, openMs, open, scan, rows:rows+S.inlined, total:plan+openMs+scan,
+          requests: open + (S.mode==='iceberg' ? S.manifestsLive+2 : 0)};
+}
+
+function runQuery(){
+  if(busy) return; busy=true; setButtons(false);
+  const c=cost(); const ids=['p1','p2','p3'];
+  ['q-plan','q-open','q-scan','q-total'].forEach(i=>document.getElementById(i).textContent='…');
+  let k=0;
+  const show=()=>{
+    ids.forEach((id,j)=>document.getElementById(id).classList.toggle('active', j===k));
+    if(k===0) document.getElementById('q-plan').textContent = S.mode==='iceberg' ? `${S.manifestsLive} manifests` : 'SQL lookup';
+    if(k===1){ document.getElementById('q-open').textContent = `${c.open} files`;
+      document.querySelectorAll('#live .t').forEach(t=>t.classList.add('reading'));}
+    if(k===2) document.getElementById('q-scan').textContent = `${c.rows.toLocaleString()} rows`;
+    if(++k<=3) setTimeout(show, 450+Math.min(900, k===2 ? c.openMs/3 : 150));
+    else finish();
+  };
+  const finish=()=>{
+    ids.forEach(id=>document.getElementById(id).classList.remove('active'));
+    document.querySelectorAll('#live .t').forEach(t=>t.classList.remove('reading'));
+    document.getElementById('q-total').textContent=fmtMs(c.total);
+    document.getElementById('q-req').textContent=c.requests.toLocaleString();
+    S.history.push({ms:c.total, files:c.open, good: c.open<=3 && (S.mode!=='iceberg' || S.manifestsLive<=2)});
+    renderHist();
+    log(`Query: plan ${fmtMs(c.plan)} + open ${c.open} files ${fmtMs(c.openMs)} + scan ${fmtMs(c.scan)} = ${fmtMs(c.total)}`, c.open>10?'warn':'ok');
+    busy=false; setButtons(true);
+  };
+  show();
+}
+
+function packBig(){
+  const L=live(); if(L.length<2) return 0;
+  const total=L.reduce((a,f)=>a+f.rows,0);
+  L.forEach(f=>f.live=false);
+  let left=total, made=0;
+  while(left>0){ const r=Math.min(BIG_ROWS,left); S.files.push({id:nextId++,rows:r,big:true,live:true}); left-=r; made++; }
+  return {old:L.length, made};
+}
+function compact(){
+  if(busy) return;
+  const r=packBig(); if(!r){ log('Nothing to compact.'); return; }
+  S.snapshots++; S.manifestsLive=1; S.manifestsS3++; S.metaS3++; S.compactedSinceExpire=true;
+  log(`Compacted ${r.old} small files into ${r.made} big file(s). Queries now open ${live().length} file(s)…`, 'ok');
+  log(`…but S3 still holds all ${r.old} old files. Storage went UP, not down.`, 'warn');
+  render();
+}
+function expireClean(){
+  if(busy) return;
+  const dead=S.files.filter(f=>!f.live).length, snaps=S.snapshots;
+  S.files=S.files.filter(f=>f.live);
+  S.snapshots=Math.min(S.snapshots,1); S.manifestsS3=S.manifestsLive; S.metaS3=Math.min(S.metaS3,1);
+  S.compactedSinceExpire=false;
+  log(`Expired ${Math.max(0,snaps-1)} old snapshots and deleted ${dead} unused files from S3.`, dead? 'ok':'');
+  if(live().some(f=>!f.big) && live().length>3) log('Tip: still many small live files. Compaction is what fixes those.', 'warn');
+  render();
+}
+function rewriteManifests(){
+  if(busy) return;
+  if(S.manifestsLive<=1){ log('Manifests already tidy.'); return; }
+  const was=S.manifestsLive; S.manifestsLive=1; S.manifestsS3++; S.snapshots++; S.metaS3++;
+  log(`Rewrote ${was} manifests into 1. Planning gets faster; data files unchanged.`, 'ok'); render();
+}
+function checkpoint(){
+  if(busy) return;
+  const flushed=S.inlined;
+  if(flushed){ S.files.push({id:nextId++,rows:flushed,big:flushed>=500,live:true}); S.inlined=0; }
+  const r=packBig();
+  const dead=S.files.filter(f=>!f.live).length, snaps=S.snapshots;
+  S.files=S.files.filter(f=>f.live); S.snapshots=Math.min(S.snapshots,1);
+  log(`CHECKPOINT: flushed ${flushed} inlined rows, merged ${r?r.old:0} files, expired ${Math.max(0,snaps-1)} snapshots, deleted ${dead} unused files.`, 'ok');
+  log('(Real DuckLake keeps old files for a retention window. This shows retention set to now.)');
+  render();
+}
+
+function setButtons(on){ document.querySelectorAll('.bar .btn').forEach(b=>b.disabled=!on); }
+
+function tile(f, newId){
+  const d=document.createElement('div');
+  d.className='t '+(f.big?'big':'small')+(f.live?'':' dead')+(f.id===newId?' new':'');
+  if(f.big) d.textContent = fmtSize(f.rows);
+  if(f.id===newId) setTimeout(()=>d.classList.remove('new'),250);
+  return d;
+}
+function render(newId){
+  const ice=S.mode==='iceberg';
+  const inl=!ice && document.getElementById('inl').checked;
+  document.getElementById('table-title').textContent = ice ? 'Iceberg table: files the query must read' : 'DuckLake table: files the query must read';
+  const L=live(); const liveEl=document.getElementById('live'); liveEl.innerHTML='';
+  L.forEach(f=>liveEl.appendChild(tile(f,newId)));
+  const s3=document.getElementById('s3'); s3.innerHTML='';
+  S.files.forEach(f=>s3.appendChild(tile(f,newId)));
+  document.getElementById('inline-box').classList.toggle('on', !ice);
+  document.getElementById('inline-rows').textContent=S.inlined.toLocaleString();
+  document.getElementById('inline-meter').style.width=Math.min(100,S.inlined/50)+'%';
+  const set=(id,v,cls)=>{const e=document.getElementById(id); e.textContent=v; e.className='v'+(cls?' '+cls:'');};
+  set('s-writes',S.writes); set('s-rows',S.rows.toLocaleString());
+  set('s-live',L.length, L.length>10?'bad':(L.length&&L.length<=3?'good':''));
+  const avg = L.length ? L.reduce((a,f)=>a+f.rows,0)/L.length : 0;
+  set('s-avg', L.length?fmtSize(Math.round(avg)):'–', L.length?(avg<200?'bad':'good'):'');
+  set('s-snap',S.snapshots, S.snapshots>20?'bad':'');
+  document.getElementById('k-man').textContent = ice ? 'Manifests to plan' : 'Catalog rows (SQL)';
+  set('s-man', ice ? S.manifestsLive : 'n/a', ice && S.manifestsLive>10 ? 'bad':'');
+  const dead=S.files.filter(f=>!f.live).length;
+  set('s-s3',S.files.length, S.files.length>10?'bad':'');
+  document.getElementById('k-meta').textContent = ice ? 'Manifests + metadata.json' : 'Metadata files';
+  set('s-meta', ice ? (S.manifestsS3+S.metaS3) : '0 (SQL rows)', ice && S.manifestsS3+S.metaS3>20 ? 'bad':'');
+  set('s-dead',dead, dead?'bad':'');
+  document.getElementById('trap').classList.toggle('on', ice && S.compactedSinceExpire && dead>0);
+  renderHist();
+}
+function renderHist(){
+  const h=document.getElementById('hist'); h.innerHTML='';
+  const max=Math.max(200,...S.history.map(x=>x.ms));
+  S.history.slice(-14).forEach(x=>{
+    const d=document.createElement('div'); d.className='hb'+(x.good?' good':'');
+    d.innerHTML=`<span>${fmtMs(x.ms)}</span><i style="height:${Math.max(4,x.ms/max*90)}px"></i><span>${x.files}f</span>`;
+    h.appendChild(d);
+  });
+}
+setMode('iceberg');
+</script>
+</body>
+</html>
