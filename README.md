@@ -21,28 +21,23 @@ Query times come from a simple illustrative cost model, not a benchmark. The lab
 
 The simulator is a single self-contained file: [`docs/index.html`](docs/index.html).
 
-## 2. The hands-on lab
+## 2. The hands-on lab: a company lakehouse that rots for real
 
-Same small-write workload into:
-
-- **Iceberg**: Spark + Lakekeeper (REST catalog) + Silo (S3)
-- **DuckLake**: DuckDB 2.0 + Postgres catalog + Silo (S3)
+Nessie + Iceberg + Trino + S3, fed by a fake online shop. A pipeline loads new orders and payments every 10 seconds, the way many "near real-time" pipelines do, and you watch the small files, snapshots and manifests pile up. Then you fix it with Trino's Iceberg procedures.
 
 ```bash
 cd lab
 docker compose up -d
-alias lab='docker compose exec -w /home/jovyan/lab lab python'
-
-lab iceberg_rot.py rot       # 200 tiny appends
-lab iceberg_rot.py inspect   # count the damage
-lab iceberg_rot.py bench     # time a query
-lab iceberg_rot.py fix       # compact, expire, rewrite manifests, remove orphans
-lab iceberg_rot.py bench     # compare
-
-# same commands for ducklake_rot.py
+docker compose exec loader python watch.py      # live rot meter
+docker compose exec loader python bench.py      # time the company dashboards
+docker compose exec loader python maintain.py all
 ```
 
-Full steps, URLs and what to expect: [`lab/README.md`](lab/README.md).
+Full walkthrough: [`lab/README.md`](lab/README.md).
+
+### Bonus lab: Iceberg vs DuckLake
+
+Spark + Lakekeeper vs DuckDB + DuckLake, same small-write load: [`bonus-iceberg-vs-ducklake/`](bonus-iceberg-vs-ducklake/).
 
 ## What to take home
 

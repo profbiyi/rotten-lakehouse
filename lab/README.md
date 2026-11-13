@@ -1,74 +1,81 @@
-# Rotten Lakehouse Lab
+# The lab: a real company lakehouse that rots in front of you
 
-Watch a lakehouse rot under small writes, then fix it. Same workload into:
+The same story as the [simulator](https://profbiyi.github.io/rotten-lakehouse/), with real tools.
 
-- **Iceberg**: Spark + Lakekeeper (REST catalog) + Silo (S3)
-- **DuckLake**: DuckDB 2.0 + Postgres catalog + Silo (S3), two tables:
-  - `events_tiny`: inlining off (behaves like Iceberg: one Parquet file per insert)
-  - `events_inlined`: inlining on (small inserts sit in the Postgres catalog)
+```
+ shop app ──writes every second──▶ Postgres (shop db)
+                                        │
+ loader ──every 10s: INSERT INTO lakehouse SELECT new rows FROM shop (Trino)
+                                        ▼
+            Iceberg tables  ◀── catalog: Nessie
+            on S3 (Silo)    ◀── queries: Trino
+```
 
-## Start
+- **shop**: a fake online shop. Takes ~8 orders a second, plus payments, into its own Postgres. Knows nothing about the lakehouse.
+- **loader**: the data team's "near real-time" pipeline. Every 10 seconds it copies the new rows into `lakehouse.bronze.orders` and `lakehouse.bronze.payments` (Iceberg, partitioned by day). Every run is a small commit, which is how the rot starts.
+- **Nessie** is the catalog, **Trino** is the engine, **Silo** (an S3-compatible store) holds the files.
+
+## What you need
+
+- Docker Desktop with **6 GB+ RAM**
+- Free ports: **8080** (Trino), **19120** (Nessie), **9000/9001** (Silo), **5433** (Postgres)
+
+## Run it
 
 ```bash
+cd lab
 docker compose up -d
-docker compose logs -f lab    # wait for the Jupyter URL, then Ctrl+C
+docker compose logs -f shop loader      # wait for "loader running…", then Ctrl+C
 ```
 
-First Spark run downloads the Iceberg jars (cached after that).
-
-| What | URL |
+| What | Where |
 |---|---|
-| Silo console (watch files pile up) | http://localhost:9001 (silo-root-user / silo-root-password) |
-| Lakekeeper UI | http://localhost:8181/ui |
-| Jupyter | http://localhost:8888 |
-| Spark UI (while a job runs) | http://localhost:4040 |
+| Trino UI (query times) | http://localhost:8080 (any username) |
+| Nessie UI (commits pile up) | http://localhost:19120 |
+| Silo console (files pile up) | http://localhost:9001 (admin / password) |
 
-## Run the experiment
+## The demo, step by step
 
+**1. Watch it rot (leave this running in its own terminal)**
 ```bash
-alias lab='docker compose exec -w /home/jovyan/lab lab python'
+docker compose exec loader python watch.py            # or: watch.py payments
+```
+Snapshots, data files, manifests and files on S3 climb every 10 seconds. The dashboard query gets slower.
 
-# 1. Rot: 200 appends of 50 rows each
-lab iceberg_rot.py  rot --batches 200 --rows 50
-lab ducklake_rot.py rot --batches 200 --rows 50
-
-# 2. Look at the damage
-lab iceberg_rot.py  inspect
-lab ducklake_rot.py inspect
-lab iceberg_rot.py  bench
-lab ducklake_rot.py bench
-
-# 3. Fix it
-lab iceberg_rot.py  fix      # rewrite_data_files, expire_snapshots, rewrite_manifests, remove_orphan_files
-lab ducklake_rot.py fix      # CHECKPOINT, then forced expiry + cleanup
-
-# 4. Measure again
-lab iceberg_rot.py  bench
-lab ducklake_rot.py bench
-
-# Start over
-lab iceberg_rot.py  reset
-lab ducklake_rot.py reset
+**2. Look inside with SQL**
+```bash
+docker compose exec trino trino --catalog lakehouse --schema bronze -f /sql/01_inspect.sql
 ```
 
-## What to expect
+**3. Time the company dashboards**
+```bash
+docker compose exec loader python bench.py
+```
 
-| Metric | Iceberg | DuckLake (inlining off) | DuckLake (inlining on) |
-|---|---|---|---|
-| Data files after 200 appends | ~200 | ~200 | ~0 |
-| Snapshots | ~200 | ~400 for the whole lake (both tables) | shared with the left |
-| Manifests / metadata.json files | ~200 each | none (metadata is SQL rows) | none |
-| Where the rot lives | S3 files + metadata files | S3 files | rows in the Postgres catalog |
-| Fix | 4 Spark procedures | `CHECKPOINT` | `CHECKPOINT` (flush first) |
+**4. Fix it, one chore at a time** (watch the numbers in the watch terminal)
+```bash
+docker compose exec loader python maintain.py optimize    # compaction: files ↓, but data files on S3 ↑ (the trap)
+docker compose exec loader python maintain.py manifests   # manifests to plan ↓
+docker compose exec loader python maintain.py expire      # snapshots ↓, unused files on S3 deleted
+docker compose exec loader python maintain.py orphans     # leftovers from failed writes
+docker compose exec loader python bench.py                # compare with step 3
+```
+Or all four in order: `maintain.py all`. Each step prints before → after.
 
-Things to point out in the session:
+**5. Watch it rot again.** The loader never stopped. Maintenance is a job you schedule, not a one-off.
 
-- `files` vs `files_held_by_history` (Iceberg) and `live_parquet_files` vs `parquet_files_on_s3` (DuckLake): compaction alone does **not** shrink storage. Old files stay until snapshots are expired and cleanup runs.
-- After `CHECKPOINT`, DuckLake's default retention still keeps old files, so S3 barely shrinks until the forced expiry step. That's retention working as designed, not a bug.
-- Make the rot worse: `--batches 1000 --rows 5`, or add a `PARTITIONED BY (days(event_ts))` to multiply files.
+**Bonus: "deleted isn't deleted".** Follow `sql/03_deleted_isnt_deleted.sql` in the Trino CLI:
+```bash
+docker compose exec trino trino --catalog lakehouse --schema bronze
+```
 
-## Known rough edges (not tested end to end yet)
+## Make it rot faster or slower
 
-- `remove_orphan_files` needs to list the bucket. With Lakekeeper vending credentials, that can be refused; the script skips it and says so.
-- DuckLake table options use `WITH (data_inlining_row_limit = N)`, which needs a recent ducklake extension (ships with DuckDB 2.0).
-- Silo replaces MinIO, following Lakekeeper's own example. Swap to `minio/minio` if you prefer; the S3 settings are the same.
+In `docker-compose.yml`: `LOAD_EVERY_SECONDS` on the loader (try `3`) and `ORDERS_PER_SECOND` on the shop. Then `docker compose up -d`.
+
+## Notes
+
+- `lakehouse.properties` sets `iceberg.expire-snapshots.min-retention=0s` and `iceberg.remove-orphan-files.min-retention=0s` so cleanup works immediately. **Lab only.** The production default is 7 days.
+- **Nessie and cleanup:** Nessie keeps history across branches. Expiring snapshots on `main` is fine here because there's only `main`. With other branches or tags, files may still be needed elsewhere. Nessie ships its own reference-aware GC tool for that, and Iceberg's own Nessie catalog disables `expire_snapshots` by default for the same reason.
+- Start fresh: `docker compose down -v`.
+- Uses `fs.s3.enabled` (current Trino). Older Trino releases call it `fs.native-s3.enabled`.

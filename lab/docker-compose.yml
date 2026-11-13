@@ -1,150 +1,123 @@
-# Rotten Lakehouse Lab
-# Same small-write workload into Iceberg (Lakekeeper catalog) and DuckLake (Postgres catalog),
-# both storing data on Silo (S3-compatible, maintained MinIO fork).
+# Rotten Lakehouse: a "normal company" lakehouse that rots in real time.
 #
-# Based on lakekeeper/lakekeeper examples/minimal.
+#   shop (Postgres)  --app writes orders & payments every second-->
+#   loader            --every 10s: INSERT INTO lakehouse SELECT new rows FROM shop (via Trino)-->
+#   Iceberg tables on S3 (Silo), catalog in Nessie, queried with Trino.
+#
+# Nessie settings follow projectnessie/nessie docker/all-in-one.
 
-x-lakekeeper-env: &lakekeeper-env
-  LAKEKEEPER__PG_ENCRYPTION_KEY: This-is-NOT-Secure!
-  LAKEKEEPER__PG_DATABASE_URL_READ: postgresql://postgres:postgres@db:5432/postgres
-  LAKEKEEPER__PG_DATABASE_URL_WRITE: postgresql://postgres:postgres@db:5432/postgres
-  RUST_LOG: info
+x-python-env: &python-env
+  SHOP_DSN: postgresql://postgres:postgres@postgres:5432/shop
+  TRINO_HOST: trino
+  TRINO_PORT: "8080"
+  S3_ENDPOINT: http://silo:9000
+  S3_KEY: admin
+  S3_SECRET: password
 
 services:
-  # ---------- Postgres: Lakekeeper's backend AND the DuckLake catalog ----------
-  db:
+  # ---------- The company's app database (OLTP) + Nessie's own store ----------
+  postgres:
     image: postgres:17
     environment:
       POSTGRES_PASSWORD: postgres
     volumes:
-      - ./init/create-ducklake-db.sql:/docker-entrypoint-initdb.d/01-ducklake.sql:ro
+      - ./init/postgres.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 2s
-      timeout: 10s
-      retries: 10
-      start_period: 10s
+      timeout: 5s
+      retries: 20
     ports:
-      - "5432:5432"
+      - "5433:5432"   # 5433 on your laptop, so it won't clash with a local Postgres
 
-  # ---------- Object storage ----------
+  # ---------- Object storage (S3-compatible) ----------
   silo:
     image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: silo-root-user
-      MINIO_ROOT_PASSWORD: silo-root-password
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: password
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 2s
-      timeout: 10s
-      retries: 10
-      start_period: 15s
+      timeout: 5s
+      retries: 20
     ports:
       - "9000:9000"   # S3 API
-      - "9001:9001"   # web console: watch the files pile up here
+      - "9001:9001"   # web console: watch the bucket fill up
 
-  create-buckets:
+  create-bucket:
     image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
     depends_on:
       silo:
         condition: service_healthy
     entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        mc alias set local http://silo:9000 silo-root-user silo-root-password &&
-        mc mb --ignore-existing local/iceberg &&
-        mc mb --ignore-existing local/ducklake
-
-  # ---------- Lakekeeper (Iceberg REST catalog) ----------
-  migrate:
-    image: quay.io/lakekeeper/catalog:latest
-    environment: *lakekeeper-env
-    command: ["migrate"]
+    command: -c "mc alias set local http://silo:9000 admin password && mc mb --ignore-existing local/warehouse"
     restart: "no"
+
+  # ---------- Catalog ----------
+  nessie:
+    image: ghcr.io/projectnessie/nessie:0.110.0
     depends_on:
-      db:
+      postgres:
         condition: service_healthy
-
-  lakekeeper:
-    image: quay.io/lakekeeper/catalog:latest
-    environment: *lakekeeper-env
-    command: ["serve"]
-    healthcheck:
-      test: ["CMD", "/home/nonroot/lakekeeper", "healthcheck"]
-      interval: 2s
-      timeout: 10s
-      retries: 10
-      start_period: 5s
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-      silo:
-        condition: service_healthy
-      create-buckets:
-        condition: service_completed_successfully
-    ports:
-      - "8181:8181"   # UI at http://localhost:8181/ui
-
-  bootstrap:
-    image: curlimages/curl
-    restart: "no"
-    depends_on:
-      lakekeeper:
-        condition: service_healthy
-    command:
-      - -sS
-      - -w
-      - "%{http_code}\n"
-      - -X
-      - POST
-      - http://lakekeeper:8181/management/v1/bootstrap
-      - -H
-      - "Content-Type: application/json"
-      - --data
-      - '{"accept-terms-of-use": true}'
-
-  create-warehouse:
-    image: curlimages/curl
-    restart: "no"
-    depends_on:
-      bootstrap:
-        condition: service_completed_successfully
-    volumes:
-      - ./init/create-warehouse.json:/home/curl_user/create-warehouse.json:ro
-    command:
-      - -sS
-      - -w
-      - "%{http_code}\n"
-      - -X
-      - POST
-      - http://lakekeeper:8181/management/v1/warehouse
-      - -H
-      - "Content-Type: application/json"
-      - --data
-      - "@create-warehouse.json"
-
-  # ---------- Lab: Spark (Iceberg) + DuckDB (DuckLake) + Jupyter ----------
-  lab:
-    image: quay.io/jupyter/pyspark-notebook:2024-10-14
-    depends_on:
-      create-warehouse:
-        condition: service_completed_successfully
     environment:
-      CATALOG_URL: http://lakekeeper:8181/catalog
-      WAREHOUSE: demo
-      ICEBERG_VERSION: "1.10.0"
-    # Install DuckDB 2.0 on start, then run Jupyter (no token, local lab only)
-    command: >
-      bash -c "pip install -q duckdb==2.0.0 &&
-               start-notebook.sh --NotebookApp.token=''"
-    volumes:
-      - ./lab:/home/jovyan/lab
-      - ivy-cache:/home/jovyan/.ivy2   # keep Spark jars between runs
+      - nessie.version.store.type=JDBC2
+      - nessie.version.store.persist.jdbc.datasource=postgresql
+      - quarkus.datasource.postgresql.jdbc.url=jdbc:postgresql://postgres:5432/nessie
+      - quarkus.datasource.postgresql.username=postgres
+      - quarkus.datasource.postgresql.password=postgres
+    healthcheck:
+      test: "exec 3<>/dev/tcp/localhost/9000 && echo -e 'GET /q/health HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"
+      interval: 5s
+      timeout: 2s
+      retries: 30
     ports:
-      - "8888:8888"   # Jupyter
-      - "4040:4040"   # Spark UI
+      - "19120:19120"  # Nessie API + UI at http://localhost:19120
 
-volumes:
-  ivy-cache:
+  # ---------- Query engine ----------
+  trino:
+    image: trinodb/trino:latest
+    depends_on:
+      nessie:
+        condition: service_healthy
+      create-bucket:
+        condition: service_completed_successfully
+    volumes:
+      - ./trino/catalog:/etc/trino/catalog:ro
+      - ./sql:/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "trino --execute 'SELECT 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 40
+    ports:
+      - "8080:8080"   # Trino UI: watch query times and splits
+
+  # ---------- The company: an app that keeps selling things ----------
+  shop:
+    image: python:3.12-slim
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *python-env
+      ORDERS_PER_SECOND: "8"
+    volumes:
+      - ./app:/app:ro
+    working_dir: /app
+    command: sh -c "pip install -q --root-user-action=ignore -r requirements.txt && python -u shop.py"
+
+  # ---------- The data team's pipeline: small, frequent loads ----------
+  loader:
+    image: python:3.12-slim
+    depends_on:
+      trino:
+        condition: service_healthy
+    environment:
+      <<: *python-env
+      LOAD_EVERY_SECONDS: "10"
+    volumes:
+      - ./app:/app:ro
+    working_dir: /app
+    command: sh -c "pip install -q --root-user-action=ignore -r requirements.txt && python -u loader.py"
