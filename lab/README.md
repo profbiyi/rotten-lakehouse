@@ -1,5 +1,7 @@
 # The lab: a real company lakehouse that rots in front of you
 
+**Teaching it? Follow the step-by-step guide:** [Part 1: build it and watch it rot](guide/part-1-build-and-watch-it-rot.md). More parts coming.
+
 The same story as the [simulator](https://profbiyi.github.io/rotten-lakehouse/), with real tools.
 
 ```
@@ -89,7 +91,7 @@ Snapshots, data files, manifests and files on S3 climb every 10 seconds. The das
 
 **2. Look inside with SQL**
 ```bash
-docker compose exec trino trino --catalog lakehouse --schema bronze -f /sql/01_inspect.sql
+docker compose exec trino trino --catalog lakehouse --schema bronze -f /sql/part1/03_inside_the_table.sql
 ```
 
 **3. Time the company dashboards**

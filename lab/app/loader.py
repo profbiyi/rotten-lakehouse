@@ -42,9 +42,14 @@ def load_once(conn, watermark):
         if hi > watermark[table]:
             q(conn, f"INSERT INTO {table} SELECT {cols} FROM {src} "
                     f"WHERE {col} > {watermark[table]} AND {col} <= {hi}")
-            line.append(f"{table} +{hi - watermark[table]} rows")
+            files_added, total_files, total_bytes = q(conn, f"""
+                SELECT summary['added-data-files'], summary['total-data-files'], summary['total-files-size']
+                FROM "{table}$snapshots" ORDER BY committed_at DESC LIMIT 1""")[0]
+            avg_kb = int(total_bytes or 0) / max(int(total_files or 1), 1) / 1024
+            line.append(f"{table}: +{hi - watermark[table]} rows, +{files_added} file(s) "
+                        f"→ {total_files} files, avg {avg_kb:.0f} KB")
             watermark[table] = hi
-    return ", ".join(line) or "nothing new"
+    return " | ".join(line) or "nothing new"
 
 
 def check_bucket():
