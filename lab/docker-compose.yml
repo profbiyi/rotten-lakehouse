@@ -102,7 +102,7 @@ services:
         condition: service_healthy
     environment:
       <<: *python-env
-      ORDERS_PER_SECOND: "8"
+      ORDERS_PER_SECOND: ${ORDERS_PER_SECOND:-8}       # 0 = paused, send data by hand
     volumes:
       - ./app:/app:ro
     working_dir: /app
@@ -116,7 +116,7 @@ services:
         condition: service_healthy
     environment:
       <<: *python-env
-      LOAD_EVERY_SECONDS: "10"
+      LOAD_EVERY_SECONDS: ${LOAD_EVERY_SECONDS:-10}   # 0 = paused, load by hand
     volumes:
       - ./app:/app:ro
     working_dir: /app

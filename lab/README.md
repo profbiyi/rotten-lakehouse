@@ -34,6 +34,28 @@ docker compose logs -f shop loader      # wait for "loader running…", then Ctr
 | Nessie UI (commits pile up) | http://localhost:19120 |
 | Silo console (files pile up) | http://localhost:9001 (admin / password) |
 
+## Three ways to feed it
+
+**1. Autopilot (default):** start it and walk away. The shop sells ~8 orders a second, and the loader commits every 10 seconds.
+```bash
+docker compose up -d
+```
+
+**2. You drive:** start everything paused, then send data and load it yourself, so the room sees each commit land.
+```bash
+ORDERS_PER_SECOND=0 LOAD_EVERY_SECONDS=0 docker compose up -d
+docker compose exec shop   python shop.py burst 500   # the app takes 500 orders
+docker compose exec loader python loader.py once      # the pipeline loads them: 1 commit per table
+```
+Run the `loader.py once` line 10 times in a row and you have just made 10 small commits.
+
+**3. Turbo:** make it rot fast for a short session.
+```bash
+LOAD_EVERY_SECONDS=2 docker compose up -d
+```
+
+Switch between modes any time by re-running `docker compose up -d` with different values.
+
 ## The demo, step by step
 
 **1. Watch it rot (leave this running in its own terminal)**
@@ -71,7 +93,7 @@ docker compose exec trino trino --catalog lakehouse --schema bronze
 
 ## Make it rot faster or slower
 
-In `docker-compose.yml`: `LOAD_EVERY_SECONDS` on the loader (try `3`) and `ORDERS_PER_SECOND` on the shop. Then `docker compose up -d`.
+Set `LOAD_EVERY_SECONDS` and `ORDERS_PER_SECOND` when you start it (see "Three ways to feed it" above).
 
 ## Notes
 

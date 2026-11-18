@@ -3,8 +3,12 @@ The data team's pipeline: every few seconds, copy new rows from the shop's
 Postgres into Iceberg bronze tables. One small INSERT per table per run =
 one commit = new data files, a new manifest, a new snapshot, a new metadata.json.
 This is how most "near real-time" pipelines rot a lakehouse.
+
+  python loader.py         run every LOAD_EVERY_SECONDS (0 = paused, load by hand instead)
+  python loader.py once    run one load right now, then exit
 """
 import os
+import sys
 import time
 
 from common import CATALOG, SCHEMA, q, q1, trino_conn
@@ -31,6 +35,18 @@ SOURCES = {  # lakehouse table -> (source table, id column, columns)
 }
 
 
+def load_once(conn, watermark):
+    line = []
+    for table, (src, col, cols) in SOURCES.items():
+        hi = q1(conn, f"SELECT coalesce(max({col}), 0) FROM {src}")
+        if hi > watermark[table]:
+            q(conn, f"INSERT INTO {table} SELECT {cols} FROM {src} "
+                    f"WHERE {col} > {watermark[table]} AND {col} <= {hi}")
+            line.append(f"{table} +{hi - watermark[table]} rows")
+            watermark[table] = hi
+    return ", ".join(line) or "nothing new"
+
+
 def main():
     conn = trino_conn()
     for stmt in DDL:
@@ -46,20 +62,21 @@ def main():
             time.sleep(3)
 
     watermark = {t: q1(conn, f"SELECT coalesce(max({col}), 0) FROM {t}") for t, (_, col, _) in SOURCES.items()}
-    print(f"loader running every {EVERY}s, starting after {watermark}")
 
+    if len(sys.argv) > 1 and sys.argv[1] == "once":
+        print("one load:", load_once(conn, watermark), "(1 commit per table)")
+        return
+
+    if EVERY <= 0:
+        print("loader paused (LOAD_EVERY_SECONDS=0). Load by hand with: python loader.py once")
+        while True:
+            time.sleep(60)
+
+    print(f"loader running every {EVERY}s, starting after {watermark}")
     run = 0
     while True:
         run += 1
-        line = []
-        for table, (src, col, cols) in SOURCES.items():
-            hi = q1(conn, f"SELECT coalesce(max({col}), 0) FROM {src}")
-            if hi > watermark[table]:
-                q(conn, f"INSERT INTO {table} SELECT {cols} FROM {src} "
-                        f"WHERE {col} > {watermark[table]} AND {col} <= {hi}")
-                line.append(f"{table} +{hi - watermark[table]}")
-                watermark[table] = hi
-        print(f"run {run}: " + (", ".join(line) or "nothing new"))
+        print(f"run {run}: {load_once(conn, watermark)}")
         time.sleep(EVERY)
 
 

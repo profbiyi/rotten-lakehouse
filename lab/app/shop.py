@@ -1,9 +1,13 @@
 """
 The company: an online shop that keeps taking orders and payments.
 Writes to its own Postgres database, like any normal app. Knows nothing about the lakehouse.
+
+  python shop.py              run forever (~ORDERS_PER_SECOND orders a second; 0 = paused)
+  python shop.py burst 500    insert 500 orders right now, then exit
 """
 import os
 import random
+import sys
 import time
 
 import psycopg
@@ -77,32 +81,47 @@ def seed(cur):
     return products, cur.fetchone()[0]
 
 
+def make_orders(conn, cur, products, max_customer, n):
+    with conn.transaction():
+        for _ in range(n):
+            product_id, price = random.choice(products)
+            qty = random.choice([1, 1, 1, 2, 2, 3, 5])
+            amount = round(float(price) * qty, 2)
+            status = random.choices(["paid", "pending", "cancelled"], [85, 10, 5])[0]
+            cur.execute(
+                "INSERT INTO orders (customer_id, product_id, quantity, amount, status) "
+                "VALUES (%s, %s, %s, %s, %s) RETURNING order_id",
+                (random.randint(1, max_customer), product_id, qty, amount, status))
+            order_id = cur.fetchone()[0]
+            if status != "cancelled":
+                pay_status = "success" if status == "paid" else random.choice(["failed", "processing"])
+                cur.execute(
+                    "INSERT INTO payments (order_id, method, amount, status) VALUES (%s, %s, %s, %s)",
+                    (order_id, random.choice(METHODS), amount, pay_status))
+
+
 def main():
     conn = connect()
     cur = conn.cursor()
     cur.execute(SCHEMA)
     products, max_customer = seed(cur)
-    print(f"shop open: {len(products)} products, {max_customer} customers, ~{RATE} orders/second")
 
+    if len(sys.argv) > 2 and sys.argv[1] == "burst":
+        n = int(sys.argv[2])
+        make_orders(conn, cur, products, max_customer, n)
+        print(f"burst: inserted {n} orders")
+        return
+
+    if RATE <= 0:
+        print("shop paused (ORDERS_PER_SECOND=0). Send data yourself with: python shop.py burst 500")
+        while True:
+            time.sleep(60)
+
+    print(f"shop open: {len(products)} products, {max_customer} customers, ~{RATE} orders/second")
     total = 0
     while True:
         n = max(1, int(random.gauss(RATE, RATE / 3)))
-        with conn.transaction():
-            for _ in range(n):
-                product_id, price = random.choice(products)
-                qty = random.choice([1, 1, 1, 2, 2, 3, 5])
-                amount = round(float(price) * qty, 2)
-                status = random.choices(["paid", "pending", "cancelled"], [85, 10, 5])[0]
-                cur.execute(
-                    "INSERT INTO orders (customer_id, product_id, quantity, amount, status) "
-                    "VALUES (%s, %s, %s, %s, %s) RETURNING order_id",
-                    (random.randint(1, max_customer), product_id, qty, amount, status))
-                order_id = cur.fetchone()[0]
-                if status != "cancelled":
-                    pay_status = "success" if status == "paid" else random.choice(["failed", "processing"])
-                    cur.execute(
-                        "INSERT INTO payments (order_id, method, amount, status) VALUES (%s, %s, %s, %s)",
-                        (order_id, random.choice(METHODS), amount, pay_status))
+        make_orders(conn, cur, products, max_customer, n)
         total += n
         if total % 200 < n:
             print(f"{total} orders so far")
