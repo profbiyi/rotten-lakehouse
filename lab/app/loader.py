@@ -47,7 +47,19 @@ def load_once(conn, watermark):
     return ", ".join(line) or "nothing new"
 
 
+def check_bucket():
+    """Fail early with a clear message if the bucket or keys are wrong."""
+    import boto3
+    bucket = os.environ["S3_BUCKET"]
+    try:
+        boto3.client("s3", region_name=os.environ["AWS_REGION"]).list_objects_v2(Bucket=bucket, MaxKeys=1)
+        print(f"S3 OK: s3://{bucket}/rotten-lakehouse/")
+    except Exception as e:
+        sys.exit(f"Cannot use s3://{bucket}: {e}\nCheck lab/.env (keys, region, bucket name) and the IAM policy.")
+
+
 def main():
+    check_bucket()
     conn = trino_conn()
     for stmt in DDL:
         q(conn, stmt)

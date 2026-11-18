@@ -2,7 +2,9 @@
 #
 #   shop (Postgres)  --app writes orders & payments every second-->
 #   loader            --every 10s: INSERT INTO lakehouse SELECT new rows FROM shop (via Trino)-->
-#   Iceberg tables on S3 (Silo), catalog in Nessie, queried with Trino.
+#   Iceberg tables on Amazon S3, catalog in Nessie, queried with Trino.
+#
+# Put your AWS keys and bucket in lab/.env first (cp .env.example .env).
 #
 # Nessie settings follow projectnessie/nessie docker/all-in-one.
 
@@ -10,9 +12,10 @@ x-python-env: &python-env
   SHOP_DSN: postgresql://postgres:postgres@postgres:5432/shop
   TRINO_HOST: trino
   TRINO_PORT: "8080"
-  S3_ENDPOINT: http://silo:9000
-  S3_KEY: admin
-  S3_SECRET: password
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID in lab/.env}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY in lab/.env}
+  AWS_REGION: ${AWS_REGION:?set AWS_REGION in lab/.env}
+  S3_BUCKET: ${S3_BUCKET:?set S3_BUCKET in lab/.env}
 
 services:
   # ---------- The company's app database (OLTP) + Nessie's own store ----------
@@ -29,31 +32,6 @@ services:
       retries: 20
     ports:
       - "5433:5432"   # 5433 on your laptop, so it won't clash with a local Postgres
-
-  # ---------- Object storage (S3-compatible) ----------
-  silo:
-    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: password
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 2s
-      timeout: 5s
-      retries: 20
-    ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # web console: watch the bucket fill up
-
-  create-bucket:
-    image: pgsty/silo:RELEASE.2026-09-03T13-18-01Z
-    depends_on:
-      silo:
-        condition: service_healthy
-    entrypoint: /bin/sh
-    command: -c "mc alias set local http://silo:9000 admin password && mc mb --ignore-existing local/warehouse"
-    restart: "no"
 
   # ---------- Catalog ----------
   nessie:
@@ -81,8 +59,7 @@ services:
     depends_on:
       nessie:
         condition: service_healthy
-      create-bucket:
-        condition: service_completed_successfully
+    environment: *python-env
     volumes:
       - ./trino/catalog:/etc/trino/catalog:ro
       - ./sql:/sql:ro

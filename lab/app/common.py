@@ -45,10 +45,7 @@ def s3_counts(location):
     """Count objects actually sitting on S3 under the table's data/ and metadata/ folders."""
     if not location:
         return None, None
-    s3 = boto3.client("s3", endpoint_url=os.environ.get("S3_ENDPOINT", "http://silo:9000"),
-                      aws_access_key_id=os.environ.get("S3_KEY", "admin"),
-                      aws_secret_access_key=os.environ.get("S3_SECRET", "password"),
-                      region_name="us-east-1")
+    s3 = boto3.client("s3", region_name=os.environ["AWS_REGION"])  # keys come from AWS_* env vars
     bucket, _, prefix = location.replace("s3://", "").partition("/")
     counts = {"data": 0, "metadata": 0}
     for kind in counts:

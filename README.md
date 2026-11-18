@@ -23,7 +23,7 @@ The simulator is a single self-contained file: [`docs/index.html`](docs/index.ht
 
 ## 2. The hands-on lab: a company lakehouse that rots for real
 
-Nessie + Iceberg + Trino + S3, fed by a fake online shop. A pipeline loads new orders and payments every 10 seconds, the way many "near real-time" pipelines do, and you watch the small files, snapshots and manifests pile up. Then you fix it with Trino's Iceberg procedures.
+Nessie + Iceberg + Trino + Amazon S3, fed by a fake online shop. A pipeline loads new orders and payments every 10 seconds, the way many "near real-time" pipelines do, and you watch the small files, snapshots and manifests pile up. Then you fix it with Trino's Iceberg procedures.
 
 ```bash
 cd lab
