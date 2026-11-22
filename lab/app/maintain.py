@@ -8,6 +8,7 @@ Clean up the rot with Trino's Iceberg table procedures, one chore at a time.
   docker compose exec loader python maintain.py all          # all four, in the right order
 
 Add a table name to do one table only, e.g.  maintain.py optimize orders
+                                              maintain.py optimize gold.daily_revenue
 """
 import sys
 import time
@@ -21,7 +22,7 @@ STEPS = {
     "orphans":   "ALTER TABLE {t} EXECUTE remove_orphan_files(retention_threshold => '0s')",
 }
 ORDER = ["optimize", "manifests", "expire", "orphans"]
-SHOW = ["snapshots", "live_data_files", "avg_file_kb", "manifests_to_plan",
+SHOW = ["snapshots", "live_data_files", "delete_files", "avg_file_kb", "manifests_to_plan",
         "data_files_on_s3", "unused_data_files_on_s3", "metadata_files_on_s3"]
 
 

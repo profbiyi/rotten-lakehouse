@@ -1,6 +1,6 @@
 # Part 1: Build the lakehouse, run the jobs, watch the files pile up
 
-**Goal:** by the end of this part everyone has a working lakehouse, has loaded data into it by hand, and can *prove* with SQL that it is filling up with small files.
+**Goal:** by the end of this part everyone has a working lakehouse with bronze, silver and gold layers, has loaded data into it by hand, and can *prove* with SQL that it is filling up with small files.
 
 Nothing here is magic. Every step is a command you can read, and after every step there is something to look at.
 
@@ -135,7 +135,42 @@ Iceberg tables have hidden metadata tables. Run [`sql/part1/03_inside_the_table.
 
 ---
 
-## Step 6: Autopilot, and watch it rot live
+## Step 6: Silver and gold, the way most teams build them
+
+Bronze is raw. The business wants clean, joined data (**silver**) and ready-made numbers for the dashboard (**gold**). The loader already builds both after every bronze load. Read exactly what it runs in [`sql/part1/04_silver_gold.sql`](../sql/part1/04_silver_gold.sql):
+
+| Layer | Table | How it's refreshed every load |
+|---|---|---|
+| Silver | `silver.orders_enriched` | `INSERT` the new orders, joined to payments, customers and products. Partitioned by **day and country**, because analysts filter by both. |
+| Gold | `gold.daily_revenue` | `MERGE` (upsert) revenue per day and country, so the dashboard is always fresh |
+
+Each of these is a perfectly normal choice. Run one more load and read the loader's output:
+
+```bash
+docker compose exec shop   python shop.py burst 200
+docker compose exec loader python loader.py once
+```
+```
+bronze.orders: +200 rows, +1 file(s) → 12 files, avg 8 KB
+silver: +200 rows, +8 file(s) → 96 files, avg 3 KB         ← one file per country, every load
+gold (MERGE): +1 file(s) → 12 files + 11 delete files, avg 1 KB   ← every MERGE adds delete files
+```
+
+Then compare the three layers (last query in `04_silver_gold.sql`):
+
+```bash
+docker compose exec trino trino -f /sql/part1/04_silver_gold.sql
+```
+
+What to point at:
+- **Silver has the most files**, even though it has the same rows as bronze. Partitioning by day × country splits every small load into 8 even smaller files.
+- **Gold is a tiny table** (a few dozen rows) **with dozens of files and delete files**. Every MERGE rewrites a little and marks the old rows as deleted, instead of changing them in place.
+
+*Nothing here is wrong. Look at what it did to the files.*
+
+---
+
+## Step 7: Autopilot, and watch it rot live
 
 Switch the company and the pipeline on:
 
@@ -143,9 +178,11 @@ Switch the company and the pipeline on:
 docker compose up -d      # default: ~8 orders/second, a load every 10 seconds
 ```
 
-In a second terminal, the live meter:
+In a second terminal, the live meter (pick a layer):
 ```bash
-docker compose exec loader python watch.py
+docker compose exec loader python watch.py                          # bronze.orders
+docker compose exec loader python watch.py silver.orders_enriched
+docker compose exec loader python watch.py gold.daily_revenue
 ```
 
 And in a third, follow the pipeline log:
@@ -153,15 +190,18 @@ And in a third, follow the pipeline log:
 docker compose logs -f loader
 ```
 ```
-run 12: orders: +81 rows, +1 file(s) → 23 files, avg 9 KB | payments: ...
-run 13: orders: +77 rows, +1 file(s) → 24 files, avg 9 KB | ...
+run 12:
+    bronze.orders: +81 rows, +1 file(s) → 23 files, avg 9 KB
+    bronze.payments: +74 rows, +1 file(s) → 23 files, avg 7 KB
+    silver: +81 rows, +8 file(s) → 184 files, avg 2 KB
+    gold (MERGE): +1 file(s) → 23 files + 22 delete files, avg 1 KB
 ```
 
 Leave it for 10 minutes: that's 60 commits, 60+ small files per table.
 
 ---
 
-## Step 7: See what a query has to do
+## Step 8: See what a query has to do
 
 Run a dashboard query a few times as the files pile up:
 
@@ -182,6 +222,8 @@ Ten minutes later, run it again. More splits, more time, for a table that is sti
 
 1. Every load is a commit; every commit leaves a snapshot, a manifest, a metadata file and at least one data file.
 2. Frequent small loads mean many tiny files, not a few big ones.
-3. Queries pay for it: more files to plan, open and read.
+3. Fine-grained partitioning (day × country) multiplies them.
+4. MERGE adds delete files on top, so even a tiny gold table rots.
+5. Queries pay for it: more files to plan, open and read.
 
 **Next, Part 2: get rid of the small files (compaction), and see why storage goes *up* before it goes down.**

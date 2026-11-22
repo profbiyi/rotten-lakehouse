@@ -8,7 +8,15 @@ import trino
 
 CATALOG = "lakehouse"
 SCHEMA = "bronze"
-TABLES = ["orders", "payments"]
+TABLES = ["orders", "payments", "silver.orders_enriched", "gold.daily_revenue"]
+
+
+def meta(table, suffix):
+    """orders -> "orders$files";  silver.orders_enriched -> silver."orders_enriched$files" """
+    if "." in table:
+        schema, name = table.split(".", 1)
+        return f'{schema}."{name}${suffix}"'
+    return f'"{table}${suffix}"'
 
 
 def trino_conn():
@@ -63,17 +71,23 @@ def s3_counts(location):
 
 
 def table_stats(conn, table):
-    files, avg_bytes = q(conn, f'SELECT count(*), coalesce(avg(file_size_in_bytes), 0) FROM "{table}$files"')[0]
+    data_files, avg_bytes, delete_files = q(conn, f"""
+        SELECT count_if(content = 0),
+               coalesce(avg(CASE WHEN content = 0 THEN file_size_in_bytes END), 0),
+               count_if(content <> 0)
+        FROM {meta(table, 'files')}""")[0]
     loc = table_location(conn, table)
     s3_data, s3_meta = s3_counts(loc)
+    live = data_files + delete_files
     return {
         "rows": q1(conn, f"SELECT count(*) FROM {table}"),
-        "snapshots": q1(conn, f'SELECT count(*) FROM "{table}$snapshots"'),
-        "live_data_files": files,
+        "snapshots": q1(conn, f"SELECT count(*) FROM {meta(table, 'snapshots')}"),
+        "live_data_files": data_files,
+        "delete_files": delete_files,
         "avg_file_kb": round(avg_bytes / 1024, 1),
-        "manifests_to_plan": q1(conn, f'SELECT count(*) FROM "{table}$manifests"'),
+        "manifests_to_plan": q1(conn, f"SELECT count(*) FROM {meta(table, 'manifests')}"),
         "data_files_on_s3": s3_data,
-        "unused_data_files_on_s3": (s3_data - files) if s3_data is not None else None,
+        "unused_data_files_on_s3": (s3_data - live) if s3_data is not None else None,
         "metadata_files_on_s3": s3_meta,
     }
 
