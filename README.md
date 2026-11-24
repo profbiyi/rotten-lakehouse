@@ -1,46 +1,35 @@
 # Rotten Lakehouses: The Small File Problem
 
-A DEC Series session for the Data Engineering Community: small files, piling history, metadata bloat, and how to clean up the mess.
+A DEC Series session for the Data Engineering Community.
 
-## 1. The simulator
+A lakehouse that works perfectly on day 1 slowly fills up with thousands of tiny files. Queries get slower and storage keeps growing. In this session we watch it happen on a real lakehouse, then fix it step by step.
 
-**Live: https://profbiyi.github.io/rotten-lakehouse/**
+## How the session goes
 
-A clickable demo of what small, frequent writes do to a lakehouse table:
+| | What | Where |
+|---|---|---|
+| 1 | **Build a real lakehouse** that a pretend shop keeps sending data to | [`lakehouse/`](lakehouse/README.md) |
+| 2 | **Watch the small files pile up** in S3 and in SQL | [`lakehouse/`](lakehouse/README.md), steps 5 and 6 |
+| 3 | **Understand it** with the simulator | https://profbiyi.github.io/rotten-lakehouse/ |
+| 4 | **Fix it**, one SQL file per step | [`solutions/`](solutions/README.md) |
 
-- **Stream micro-batches** and watch tiny files, snapshots and manifests pile up
-- **Run an analytical query** and see planning, file opens and storage requests grow
-- **Compact files**, then notice that storage went *up*, not down
-- **Expire + clean up** to actually get the space back
-- Watch **compaction under the hood**: candidates, rewrite groups, bin-packing, commits, with sliders for `target-file-size-bytes`, `max-file-group-size-bytes`, `max-concurrent-file-group-rewrites` and partial progress
-- Toggle **partition by day** to see small files multiply
-- Turn on a **maintenance policy** (event or schedule trigger) and let it clean up while data streams in
-- Switch to **DuckLake** to see data inlining avoid most small files, and `CHECKPOINT` clean up in one step
+## The stack
 
-Query times come from a simple illustrative cost model, not a benchmark. The lab below gives real numbers.
+| Layer | Tool |
+|---|---|
+| Query engine | Trino |
+| Catalog | Nessie |
+| Table format | Apache Iceberg |
+| File format | Parquet |
+| Storage | Amazon S3 |
 
-The simulator is a single self-contained file: [`docs/index.html`](docs/index.html).
-
-## 2. The hands-on lab: a company lakehouse that rots for real
-
-Nessie + Iceberg + Trino + Amazon S3, fed by a fake online shop. A pipeline loads new orders and payments every 10 seconds, the way many "near real-time" pipelines do, and you watch the small files, snapshots and manifests pile up. Then you fix it with Trino's Iceberg procedures.
+## Quick start
 
 ```bash
-cd lab
+git clone https://github.com/profbiyi/rotten-lakehouse
+cd rotten-lakehouse/lakehouse
+cp .env.example .env        # add your AWS keys, region and bucket
 docker compose up -d
-docker compose exec loader python watch.py      # live rot meter
-docker compose exec loader python bench.py      # time the company dashboards
-docker compose exec loader python maintain.py all
 ```
 
-Full walkthrough: [`lab/README.md`](lab/README.md).
-
-### Bonus lab: Iceberg vs DuckLake
-
-Spark + Lakekeeper vs DuckDB + DuckLake, same small-write load: [`bonus-iceberg-vs-ducklake/`](bonus-iceberg-vs-ducklake/).
-
-## What to take home
-
-1. Small, frequent writes are normal. Rot is the price you pay.
-2. Compaction makes it fast. Expiry and cleanup make it small.
-3. Maintenance is a scheduled job, whichever table format you pick.
+Then follow [`lakehouse/README.md`](lakehouse/README.md).

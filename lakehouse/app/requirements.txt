@@ -1,3 +1,2 @@
 trino==0.340.0
 psycopg[binary]==3.3.9
-boto3==1.44.2

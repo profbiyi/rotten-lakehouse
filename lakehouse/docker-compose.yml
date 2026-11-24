@@ -1,0 +1,75 @@
+# A small lakehouse that a pretend shop keeps sending data to.
+#
+#   shop    -> writes orders to Postgres, every second
+#   loader  -> copies new rows into the lakehouse, every 10 seconds
+#   trino   -> runs the SQL          (http://localhost:8080)
+#   nessie  -> the catalog           (http://localhost:19120)
+#   S3      -> stores the files      (your AWS bucket, set in .env)
+
+name: rotten-lakehouse
+
+services:
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - ./init/postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      retries: 20
+
+  nessie:
+    image: ghcr.io/projectnessie/nessie:0.110.0
+    environment:
+      - nessie.version.store.type=JDBC2
+      - nessie.version.store.persist.jdbc.datasource=postgresql
+      - quarkus.datasource.postgresql.jdbc.url=jdbc:postgresql://postgres:5432/nessie
+      - quarkus.datasource.postgresql.username=postgres
+      - quarkus.datasource.postgresql.password=postgres
+    ports:
+      - "19120:19120"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  trino:
+    image: trinodb/trino:latest
+    env_file: .env
+    volumes:
+      - ./trino/catalog:/etc/trino/catalog:ro
+      - ./sql:/sql:ro
+      - ../solutions:/solutions:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      - nessie
+
+  shop:
+    image: python:3.12-slim
+    environment:
+      SHOP_DSN: postgresql://postgres:postgres@postgres:5432/shop
+      ORDERS_PER_SECOND: 8
+    volumes:
+      - ./app:/app:ro
+    working_dir: /app
+    command: sh -c "pip install -q --root-user-action=ignore -r requirements.txt && python -u shop.py"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  loader:
+    image: python:3.12-slim
+    environment:
+      LOAD_EVERY_SECONDS: 10
+    volumes:
+      - ./app:/app:ro
+    working_dir: /app
+    command: sh -c "pip install -q --root-user-action=ignore -r requirements.txt && python -u loader.py"
+    depends_on:
+      - trino
+      - shop
