@@ -5,7 +5,7 @@ A small, real lakehouse. A pretend shop keeps selling things, and a loader keeps
 ```
    SHOP                   LOADER                      LAKEHOUSE
  (Postgres)  ───────▶  every 10 seconds  ───────▶  bronze → silver → gold
- 8 orders a second      copies new rows            (Iceberg tables on S3)
+ 50 orders a second     copies new rows            (Iceberg tables on S3)
 ```
 
 | Piece | What it is | In real life |

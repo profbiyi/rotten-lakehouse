@@ -53,7 +53,7 @@ services:
     image: python:3.12-slim
     environment:
       SHOP_DSN: postgresql://postgres:postgres@postgres:5432/shop
-      ORDERS_PER_SECOND: 8
+      ORDERS_PER_SECOND: 50
     volumes:
       - ./app:/app:ro
     working_dir: /app
