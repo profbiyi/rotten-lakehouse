@@ -4,6 +4,8 @@ The data team's pipeline. Every few seconds:
   silver  join the new orders with payments, customers,   (INSERT, partitioned by day + country)
           products
   gold    refresh revenue per day and country              (MERGE)
+Silver and gold are refreshed only once they exist: you create them yourself
+with sql/part1/04_silver_gold.sql, and the next run backfills and keeps them fresh.
 Every statement is one commit: new data files, a manifest, a snapshot, a metadata.json.
 Nothing here is wrong. Watch what it does to the files.
 
@@ -28,19 +30,6 @@ DDL = [
         payment_id BIGINT, order_id BIGINT, method VARCHAR, amount DECIMAL(12,2),
         status VARCHAR, created_at TIMESTAMP(6))
         WITH (format = 'PARQUET', partitioning = ARRAY['day(created_at)'])""",
-    f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.silver",
-    f"""CREATE TABLE IF NOT EXISTS {CATALOG}.silver.orders_enriched (
-        order_id BIGINT, created_at TIMESTAMP(6), order_day DATE,
-        customer_id BIGINT, customer_name VARCHAR, country VARCHAR,
-        product_id BIGINT, product_name VARCHAR, category VARCHAR,
-        quantity INTEGER, amount DECIMAL(12,2), order_status VARCHAR,
-        payment_method VARCHAR, payment_status VARCHAR)
-        WITH (format = 'PARQUET', partitioning = ARRAY['day(created_at)', 'country'])""",
-    f"CREATE SCHEMA IF NOT EXISTS {CATALOG}.gold",
-    f"""CREATE TABLE IF NOT EXISTS {CATALOG}.gold.daily_revenue (
-        order_day DATE, country VARCHAR, orders BIGINT, revenue DECIMAL(18,2),
-        paid_orders BIGINT, updated_at TIMESTAMP(6))
-        WITH (format = 'PARQUET')""",
 ]
 
 SILVER_INSERT = """
@@ -95,6 +84,11 @@ def last_commit(conn, table):
     return out + f", avg {avg_kb:.0f} KB"
 
 
+def table_exists(conn, schema, name):
+    return q1(conn, f"SELECT count(*) FROM lakehouse.information_schema.tables "
+                    f"WHERE table_schema = '{schema}' AND table_name = '{name}'") > 0
+
+
 def load_once(conn, watermark):
     line = []
     for table, (src, col, cols) in SOURCES.items():
@@ -105,12 +99,23 @@ def load_once(conn, watermark):
             line.append(f"bronze.{table}: +{hi - watermark[table]} rows, {last_commit(conn, table)}")
             watermark[table] = hi
 
+    # silver and gold: only once you have created them
+    if not table_exists(conn, "silver", "orders_enriched"):
+        watermark["silver"] = None
+        return "\n    ".join(line) or "nothing new"
+    if watermark["silver"] is None:  # just created: backfill from the start
+        watermark["silver"] = q1(conn, "SELECT coalesce(max(order_id), 0) FROM lakehouse.silver.orders_enriched")
     lo, hi = watermark["silver"], watermark["orders"]
     if hi > lo:
         q(conn, SILVER_INSERT.format(lo=lo, hi=hi))
         line.append(f"silver: +{hi - lo} rows, {last_commit(conn, 'silver.orders_enriched')}")
-        q(conn, GOLD_MERGE.format(lo=lo, hi=hi))
-        line.append(f"gold (MERGE): {last_commit(conn, 'gold.daily_revenue')}")
+        if table_exists(conn, "gold", "daily_revenue"):
+            first = not watermark.get("gold_ready")  # gold just created: rebuild every day once
+            q(conn, GOLD_MERGE.format(lo=0 if first else lo, hi=hi))
+            watermark["gold_ready"] = True
+            line.append(f"gold (MERGE): {last_commit(conn, 'gold.daily_revenue')}")
+        else:
+            watermark["gold_ready"] = False
         watermark["silver"] = hi
     return "\n    ".join(line) or "nothing new"
 
@@ -142,7 +147,7 @@ def main():
             time.sleep(3)
 
     watermark = {t: q1(conn, f"SELECT coalesce(max({col}), 0) FROM {t}") for t, (_, col, _) in SOURCES.items()}
-    watermark["silver"] = q1(conn, "SELECT coalesce(max(order_id), 0) FROM lakehouse.silver.orders_enriched")
+    watermark["silver"] = None  # read when silver exists
 
     if len(sys.argv) > 1 and sys.argv[1] == "once":
         print("one load:\n    " + load_once(conn, watermark))

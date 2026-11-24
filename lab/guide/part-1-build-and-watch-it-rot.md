@@ -137,12 +137,20 @@ Iceberg tables have hidden metadata tables. Run [`sql/part1/03_inside_the_table.
 
 ## Step 6: Silver and gold, the way most teams build them
 
-Bronze is raw. The business wants clean, joined data (**silver**) and ready-made numbers for the dashboard (**gold**). The loader already builds both after every bronze load. Read exactly what it runs in [`sql/part1/04_silver_gold.sql`](../sql/part1/04_silver_gold.sql):
+Bronze is raw. The business wants clean, joined data (**silver**) and ready-made numbers for the dashboard (**gold**). Create both now, live:
+
+```bash
+docker compose exec trino trino -f /sql/part1/04_silver_gold.sql
+```
+
+Open [`sql/part1/04_silver_gold.sql`](../sql/part1/04_silver_gold.sql) and walk through it:
 
 | Layer | Table | How it's refreshed every load |
 |---|---|---|
 | Silver | `silver.orders_enriched` | `INSERT` the new orders, joined to payments, customers and products. Partitioned by **day and country**, because analysts filter by both. |
 | Gold | `gold.daily_revenue` | `MERGE` (upsert) revenue per day and country, so the dashboard is always fresh |
+
+The loader notices the new tables on its next run: it backfills everything already in bronze, then keeps them fresh every load.
 
 Each of these is a perfectly normal choice. Run one more load and read the loader's output:
 

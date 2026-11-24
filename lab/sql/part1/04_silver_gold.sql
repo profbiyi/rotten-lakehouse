@@ -1,6 +1,7 @@
 -- PART 1 · Step 6: silver and gold, built the way many teams build them on day 1.
--- The loader creates these tables and refreshes them after every bronze load.
--- This file shows exactly what it runs, so nothing is hidden.
+-- You create the tables (run this file). From its next run, the loader backfills them
+-- and refreshes them after every bronze load, with the INSERT and MERGE shown below.
+--   docker compose exec trino trino -f /sql/part1/04_silver_gold.sql
 
 ------------------------------------------------------------------
 -- SILVER: one clean, joined row per order
